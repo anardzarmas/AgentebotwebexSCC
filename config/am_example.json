@@ -1,0 +1,11 @@
+{
+  "_comment": "Copia este archivo como config/<iniciales>.json para cada AM nuevo.",
+  "email": "usuario@best.org.mx",
+  "name": "Nombre Apellido",
+  "title": "Account Manager",
+  "company": "BEST Typhoon Technologies",
+  "zoho_org_id": "ID_ORG_ZOHO",
+  "zoho_view_leads": "ID_VISTA_LEADS",
+  "zoho_view_potentials": "ID_VISTA_POTENTIALS",
+  "composio_entity_id": "iniciales_usuario"
+}

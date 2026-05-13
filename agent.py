@@ -89,7 +89,7 @@ def run_herramienta(herramienta: str, cfg: dict):
         api_key=os.environ["COMPOSIO_API_KEY"],
         entity_id=cfg["composio_entity_id"],
     )
-    tools   = toolset.get_tools(apps=[App.ZOHOCRM, App.OUTLOOK])
+    tools   = toolset.get_tools(apps=[App.ZOHO, App.OUTLOOK])
 
     fecha        = datetime.date.today().strftime("%Y-%m-%d")
     system_prompt = build_system_prompt(herramienta, cfg)

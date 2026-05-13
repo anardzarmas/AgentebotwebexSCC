@@ -8,8 +8,8 @@ description: "BEST H3 — reporte diario consolidado de H1+H2. Genera Reporte_He
 ## Input
 Resúmenes en memoria de H1 y H2. Si faltan, recuperar notas de hoy:
 ```
-ZOHOCRM_SEARCH_RECORDS(module=Notes,
-  criteria="(Note_Title:contains:Herramienta 1 - <DIA>) AND (Created_Time:between:<HOY_INI>:<HOY_FIN>)",
+ZOHO_SEARCH_ZOHO_RECORDS(module=Notes,
+  criteria="(Note_Title:contains:Herramienta 1 - <DIA>)",
   fields="Note_Title,Note_Content,Parent_Id,Created_Time", per_page=50)
 ```
 Repetir para Herramienta 2.

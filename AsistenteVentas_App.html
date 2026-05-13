@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asistente de Ventas IA – BEST</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --orange: #ff8f21;
+      --orange-light: #fff4e6;
+      --orange-mid: #ffd9a0;
+      --dark: #494949;
+      --darker: #2f2f2f;
+      --mid: #8c8c8c;
+      --light: #f5f5f5;
+      --white: #ffffff;
+      --green: #28a745;
+      --green-light: #eafaf0;
+      --blue: #0078d4;
+      --blue-light: #e8f3fd;
+      --purple: #6f42c1;
+      --purple-light: #f3f0ff;
+      --red: #dc3545;
+      --red-light: #fff0f0;
+      --teal: #17a2b8;
+      --teal-light: #e6f8fb;
+      --zoho: #e42527;
+      --zoho-light: #fde8e9;
+      --ms: #0078d4;
+      --ms-light: #e6f2fb;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background: var(--light);
+      color: var(--darker);
+      min-height: 100vh;
+    }
+
+    /* ── LOGIN OVERLAY ─────────────────────── */
+    #login-overlay {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, #2f2f2f 0%, #494949 50%, #ff8f21 100%);
+      z-index: 9000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .login-card {
+      background: var(--white);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      width: 100%;
+      max-width: 460px;
+      padding: 28px 28px 24px;
+    }
+    .login-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .login-brand .logo-box {
+      background: var(--orange);
+      color: var(--white);
+      font-weight: 900;
+      font-size: 16px;
+      padding: 5px 9px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+    }
+    .login-brand-text { font-size: 13px; font-weight: bold; color: var(--darker); }
+    .login-brand-text span { display: block; font-size: 10px; color: var(--mid); font-style: italic; }
+
+    .login-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--darker);
+      margin-bottom: 4px;
+    }
+    .login-subtitle {
+      font-size: 12px;
+      color: var(--mid);
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+
+    .login-step {
+      margin-bottom: 18px;
+      border: 1px solid #e8e8e8;
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: #fbfbfb;
+      transition: all 0.2s;
+    }
+    .login-step.active {
+      border-color: var(--orange);
+      background: var(--white);
+      box-shadow: 0 2px 10px rgba(255,143,33,0.12);
+    }
+    .login-step.done {
+      border-color: var(--green);
+      background: var(--green-light);
+    }
+    .login-step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .login-step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--mid);
+      color: var(--white);
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .login-step.active .login-step-num { background: var(--orange); }
+    .login-step.done .login-step-num { background: var(--green); }
+    .login-step-title { font-size: 13px; font-weight: bold; color: var(--darker); }
+    .login-step-subtitle { font-size: 11px; color: var(--mid); margin-top: 2px; }
+
+    .login-input-group { margin-bottom: 10px; }
+    .login-input-group label {
+      display: block;
+      font-size: 11px;
+      color: var(--dark);
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+    .login-input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .login-input:focus {
+      outline: none;
+      border-color: var(--orange);
+      box-shadow: 0 0 0 2px rgba(255,143,33,0.15);
+    }
+
+    .oauth-btn {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: transform 0.08s, box-shadow 0.2s;
+    }
+    .oauth-btn:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
+    .oauth-btn:active { transform: scale(0.98); }
+    .oauth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .oauth-btn.zoho { background: var(--zoho); color: white; }
+    .oauth-btn.zoho:hover { background: #c01f21; }
+    .oauth-btn.ms { background: var(--ms); color: white; }
+    .oauth-btn.ms:hover { background: #005fa3; }
+    .oauth-btn.connected { background: var(--green); cursor: default; }
+    .oauth-logo {
+      width: 18px; height: 18px; border-radius: 3px;
+      background: white;
+      color: var(--zoho);
+      font-weight: 900;
+      font-size: 11px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .oauth-logo.ms { color: var(--ms); }
+
+    .login-enter {
+      width: 100%;
+      padding: 13px;
+      margin-top: 6px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      background: var(--orange);
+      color: white;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .login-enter:hover:not(:disabled) { background: #e57d10; }
+    .login-enter:disabled { background: #ccc; cursor: not-allowed; }
+
+    .login-security {
+      margin-top: 16px;
+      padding: 10px 12px;
+      background: var(--blue-light);
+      border-left: 3px solid var(--blue);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--darker);
+      line-height: 1.5;
+    }
+    .login-security strong { color: var(--blue); }
+
+    /* ── OAUTH MODAL (simulated) ─────────── */
+    #oauth-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 9500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #oauth-modal.open { display: flex; }
+    .oauth-window {
+      background: var(--white);
+      border-radius: 10px;
+      width: 100%;
+      max-width: 440px;
+      overflow: hidden;
+      box-shadow: 0 25px 70px rgba(0,0,0,0.5);
+      animation: oauthSlide 0.25s ease;
+    }
+    @keyframes oauthSlide {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .oauth-bar {
+      background: #eaeaea;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--dark);
+      font-family: monospace;
+    }
+    .oauth-bar .dots { display: flex; gap: 4px; }
+    .oauth-bar .dots span { width: 10px; height: 10px; border-radius: 50%; background: #ccc; }
+    .oauth-bar .dots span:nth-child(1) { background: #ff5f57; }
+    .oauth-bar .dots span:nth-child(2) { background: #ffbd2e; }
+    .oauth-bar .dots span:nth-child(3) { background: #28ca42; }
+    .oauth-bar .url { flex: 1; background: white; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; }
+    .oauth-content { padding: 28px 24px; text-align: center; }
+    .oauth-logo-big {
+      width: 70px; height: 70px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      font-weight: 900;
+      color: white;
+    }
+    .oauth-logo-big.zoho { background: var(--zoho); }
+    .oauth-logo-big.ms { background: var(--ms); }
+    .oauth-title { font-size: 16px; font-weight: bold; margin-bottom: 6px; color: var(--darker); }
+    .oauth-sub { font-size: 12px; color: var(--mid); margin-bottom: 18px; line-height: 1.5; }
+    .oauth-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+    .oauth-input:focus { outline: none; border-color: var(--orange); }
+    .oauth-consent-scope {
+      background: #f7f7f7;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin: 12px 0;
+      font-size: 11px;
+      color: var(--dark);
+      text-align: left;
+    }
+    .oauth-consent-scope ul { margin: 6px 0 0 16px; }
+    .oauth-consent-scope li { margin-bottom: 3px; }
+    .oauth-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .oauth-cancel {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--dark);
+      cursor: pointer;
+    }
+    .oauth-authorize {
+      flex: 2;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      color: white;
+      cursor: pointer;
+    }
+    .oauth-authorize.zoho { background: var(--zoho); }
+    .oauth-authorize.ms { background: var(--ms); }
+    .oauth-spinner-box {
+      padding: 40px 20px;
+      text-align: center;
+    }
+    .oauth-spinner-big {
+      width: 40px; height: 40px;
+      border: 4px solid #eee;
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* ── HEADER ─────────────────────────────── */
+    header {
+      background: var(--dark);
+      color: var(--white);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .header-logo { display: flex; align-items: center; gap: 10px; }
+    .logo-box {
+      background: var(--orange);
+      color: var(--white);
+      font-weight: 900;
+      font-size: 17px;
+      padding: 5px 9px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+    }
+    .header-title { font-size: 15px; font-weight: bold; color: var(--white); }
+    .header-sub { font-size: 10px; color: var(--orange-mid); font-style: italic; }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .conn-chips { display: flex; gap: 6px; }
+    .conn-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 14px;
+      font-size: 10.5px;
+      font-weight: bold;
+      background: rgba(40,167,69,0.15);
+      color: #6fdd8b;
+      border: 1px solid rgba(40,167,69,0.3);
+    }
+    .conn-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: #6fdd8b; }
+
+    .header-user { font-size: 11px; color: #bbb; text-align: right; line-height: 1.4; }
+    .header-user strong { color: var(--orange); display: block; font-size: 12px; }
+    .logout-btn {
+      background: transparent;
+      border: 1px solid #888;
+      color: #bbb;
+      font-size: 10.5px;
+      padding: 4px 9px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 8px;
+      transition: all 0.2s;
+    }
+    .logout-btn:hover { border-color: var(--orange); color: var(--orange); }
+
+    /* ── MAIN ────────────────────────────────── */
+    main { max-width: 920px; margin: 0 auto; padding: 20px 16px 60px; }
+
+    /* ── SECTION TITLES ─────────────────────── */
+    .section-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--mid);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin: 28px 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: #ddd; }
+
+    /* ── STATUS BANNER ──────────────────────── */
+    .status-banner {
+      background: var(--white);
+      border-radius: 10px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      border-left: 4px solid var(--green);
+    }
+    .status-dot {
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+      box-shadow: 0 0 0 3px rgba(40,167,69,0.2);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 3px rgba(40,167,69,0.2); }
+      50% { box-shadow: 0 0 0 6px rgba(40,167,69,0.08); }
+    }
+    .status-text strong { font-size: 14px; }
+    .status-text p { font-size: 12px; color: var(--mid); margin-top: 2px; }
+
+    /* ── FEATURED CARD ── */
+    .featured-card {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 22px 20px;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.09);
+      border-top: 5px solid var(--orange);
+      margin-bottom: 14px;
+    }
+    .featured-card-inner { display: flex; align-items: flex-start; gap: 16px; }
+    .featured-icon {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      background: var(--orange-light);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      flex-shrink: 0;
+    }
+    .featured-info h3 { font-size: 16px; font-weight: bold; color: var(--darker); }
+    .featured-info .tag {
+      display: inline-block;
+      background: var(--orange);
+      color: white;
+      font-size: 9px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .featured-info p { font-size: 12px; color: var(--mid); margin-top: 5px; line-height: 1.5; }
+    .featured-meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .featured-meta .schedule-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--orange-light);
+      color: var(--orange);
+      font-size: 10.5px;
+      font-weight: bold;
+      padding: 4px 9px;
+      border-radius: 20px;
+      border: 1px solid var(--orange-mid);
+    }
+    .featured-meta .last-run { font-size: 11px; color: var(--mid); display: flex; align-items: center; gap: 5px; }
+    .featured-meta .last-run .ok { color: var(--green); font-weight: bold; }
+    .btn-run-featured {
+      margin-top: 14px;
+      width: 100%;
+      padding: 13px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      background: var(--orange);
+      color: var(--white);
+      transition: background 0.18s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-run-featured:hover { background: #e57d10; }
+    .btn-run-featured:active { transform: scale(0.98); }
+    .btn-run-featured:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    /* ── TOOL CARDS GRID ────────────────────── */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 680px) { .tool-grid { grid-template-columns: 1fr; } }
+
+    .tool-card {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 18px 16px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      border-top: 4px solid var(--dark);
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .tool-card.h2 { border-top-color: var(--blue); }
+    .tool-card.h3 { border-top-color: var(--purple); }
+
+    .tool-card-header { display: flex; align-items: flex-start; gap: 10px; }
+    .tool-icon {
+      width: 40px; height: 40px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .tool-icon.dark-bg { background: #eee; }
+    .tool-icon.blue-bg { background: #e8f3fd; }
+    .tool-icon.purple-bg { background: var(--purple-light); }
+
+    .tool-info h3 { font-size: 13px; font-weight: bold; color: var(--darker); }
+    .tool-info p { font-size: 11px; color: var(--mid); margin-top: 3px; line-height: 1.4; }
+
+    .schedule-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #eee;
+      color: var(--dark);
+      font-size: 10.5px;
+      font-weight: bold;
+      padding: 4px 9px;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+    }
+    .schedule-badge.blue { background: #e8f3fd; color: var(--blue); border-color: #b8d9f7; }
+    .schedule-badge.purple { background: var(--purple-light); color: var(--purple); border-color: #c9b8f7; }
+
+    .last-run { font-size: 11px; color: var(--mid); display: flex; align-items: center; gap: 5px; }
+    .last-run .ok { color: var(--green); font-weight: bold; }
+    .last-run .never { color: #ccc; }
+
+    .btn-run {
+      margin-top: 4px;
+      width: 100%;
+      padding: 10px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.18s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+    .btn-run.dark-btn { background: var(--dark); color: var(--white); }
+    .btn-run.dark-btn:hover { background: #333; }
+    .btn-run.blue-btn { background: var(--blue); color: var(--white); }
+    .btn-run.blue-btn:hover { background: #005fa3; }
+    .btn-run.purple-btn { background: var(--purple); color: var(--white); }
+    .btn-run.purple-btn:hover { background: #5a2fa5; }
+    .btn-run:active { transform: scale(0.97); }
+    .btn-run:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    /* ── SPINNER ────────────────────────────── */
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── EXECUTION DRAWER ───────────────────── */
+    #exec-drawer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--darker);
+      color: var(--white);
+      padding: 0;
+      z-index: 500;
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -4px 30px rgba(0,0,0,0.35);
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+    #exec-drawer.open { transform: translateY(0); }
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      position: sticky;
+      top: 0;
+      background: var(--darker);
+    }
+    .drawer-title { font-size: 14px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+    .drawer-close {
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: white;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .drawer-close:hover { background: rgba(255,255,255,0.2); }
+    .drawer-body { padding: 16px 20px 20px; }
+    .exec-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .exec-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12.5px;
+      color: #aaa;
+      opacity: 0;
+      transform: translateX(-10px);
+      transition: all 0.4s ease;
+    }
+    .exec-step.visible { opacity: 1; transform: translateX(0); color: #d4d4d4; }
+    .exec-step.done { color: #6fdd8b; }
+    .exec-step-icon { font-size: 14px; flex-shrink: 0; }
+
+    .exec-prompt-box {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 14px;
+      display: none;
+    }
+    .exec-prompt-box.show { display: block; }
+    .exec-prompt-label {
+      font-size: 10.5px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    .exec-prompt-text {
+      font-family: monospace;
+      font-size: 11.5px;
+      color: #79c0ff;
+      line-height: 1.5;
+      word-break: break-word;
+      max-height: 180px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.25);
+      padding: 10px 12px;
+      border-radius: 6px;
+    }
+    .btn-copy {
+      margin-top: 10px;
+      width: 100%;
+      padding: 9px;
+      background: var(--orange);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-copy:hover { background: #e57d10; }
+    .btn-copy.copied { background: var(--green); }
+
+    /* ── TABLES ─────────────────────── */
+    .schedule-table {
+      background: var(--white);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      overflow-x: auto;
+    }
+    .schedule-table table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+    .schedule-table thead tr { background: var(--dark); color: var(--white); }
+    .schedule-table thead th {
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: bold;
+      font-size: 10.5px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .schedule-table tbody tr:nth-child(even) { background: #fafafa; }
+    .schedule-table tbody tr:hover { background: var(--orange-light); }
+    .schedule-table td { padding: 9px 12px; color: var(--darker); border-bottom: 1px solid #f0f0f0; }
+    .day-active { font-weight: bold; color: var(--orange); }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: bold;
+    }
+    .pill-green { background: var(--green-light); color: var(--green); }
+    .pill-gray { background: #eee; color: var(--mid); }
+    .pill-orange { background: var(--orange-light); color: var(--orange); border: 1px solid var(--orange-mid); }
+    .pill-blue { background: #e8f3fd; color: var(--blue); border: 1px solid #b8d9f7; }
+    .pill-purple { background: var(--purple-light); color: var(--purple); border: 1px solid #c9b8f7; }
+
+    /* ── QUICK LOG ───────────────────────────── */
+    .log-box {
+      background: var(--darker);
+      color: #d4d4d4;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-family: monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      max-height: 200px;
+      overflow-y: auto;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .log-line { display: flex; gap: 10px; }
+    .log-time { color: #888; flex-shrink: 0; }
+    .log-msg.ok { color: #6fdd8b; }
+    .log-msg.warn { color: var(--orange-mid); }
+    .log-msg.info { color: #79c0ff; }
+
+    /* ── TOAST ───────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--darker);
+      color: var(--white);
+      padding: 12px 22px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: bold;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      transition: transform 0.3s ease;
+      z-index: 999;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { border-left: 4px solid var(--green); }
+    #toast.warning { border-left: 4px solid var(--orange); }
+
+    footer { text-align: center; font-size: 10.5px; color: #bbb; padding: 20px 16px; }
+    footer a { color: var(--orange); text-decoration: none; }
+
+    /* ══ EXECUTIVE 3-COLUMN TOOL GRID (BEST Brand) ══════════════ */
+    .tools-trio {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+    @media (max-width: 760px) { .tools-trio { grid-template-columns: 1fr; } }
+    @media (min-width: 481px) and (max-width: 760px) { .tools-trio { grid-template-columns: 1fr 1fr; } }
+
+    .card-exec {
+      background: var(--white);
+      border-radius: 12px;
+      border-top: 5px solid var(--orange);
+      padding: 24px 20px 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s, transform 0.15s;
+      position: relative;
+    }
+    .card-exec:hover {
+      box-shadow: 0 6px 24px rgba(255,143,33,0.18);
+      transform: translateY(-3px);
+    }
+    .card-exec-num {
+      position: absolute;
+      top: -1px; right: 18px;
+      background: var(--orange);
+      color: var(--white);
+      font-size: 9px;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 0 0 6px 6px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+    .card-exec-icon {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      background: var(--orange-light);
+      border: 1px solid var(--orange-mid);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+    }
+    .card-exec-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--darker);
+      margin-bottom: 8px;
+      line-height: 1.3;
+      letter-spacing: -0.1px;
+    }
+    .card-exec-desc {
+      font-size: 11.5px;
+      color: var(--mid);
+      line-height: 1.6;
+      margin-bottom: 16px;
+      flex: 1;
+    }
+    .card-exec-meta {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card-exec-schedule {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--orange-light);
+      color: var(--orange);
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--orange-mid);
+      width: fit-content;
+    }
+    .card-exec-lastrun {
+      font-size: 11px;
+      color: var(--mid);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .card-exec-lastrun .ok { color: var(--green); font-weight: 600; }
+    .btn-exec {
+      width: 100%;
+      padding: 13px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Roboto', Arial, sans-serif;
+      cursor: pointer;
+      background: var(--dark);
+      color: var(--white);
+      transition: background 0.18s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: 0.2px;
+      margin-top: auto;
+    }
+    .btn-exec:hover { background: var(--orange); }
+    .btn-exec:active { transform: scale(0.97); }
+    .btn-exec:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-exec:disabled:hover { background: var(--dark); }
+
+    /* divider line inside section titles — refine for brand */
+    .section-title { font-family: 'Roboto', Arial, sans-serif; letter-spacing: 1px; }
+
+    /* ══ BRAND SECONDARY COLORS (Manual identidad BEST) ═════════ */
+    :root {
+      --brand-blue:        #32B1E7;   /* Pantone 2190 C */
+      --brand-blue-light:  #E6F7FC;
+      --brand-blue-mid:    #A8DCF5;
+      --brand-amber:       #FA9D1D;   /* Pantone 144 C  */
+      --brand-amber-light: #FEF4E3;
+      --brand-amber-mid:   #FAD898;
+    }
+
+    /* Per-tool card accent — top border */
+    .card-exec.t1 { border-top-color: var(--orange); }
+    .card-exec.t2 { border-top-color: var(--brand-blue); }
+    .card-exec.t3 { border-top-color: var(--brand-amber); }
+
+    /* Per-tool number badge */
+    .card-exec-num.t1 { background: var(--orange); }
+    .card-exec-num.t2 { background: var(--brand-blue); }
+    .card-exec-num.t3 { background: var(--brand-amber); color: #3a2000; }
+
+    /* Per-tool icon container */
+    .card-exec-icon.t1 { background: var(--orange-light);   border-color: var(--orange-mid); }
+    .card-exec-icon.t2 { background: var(--brand-blue-light); border-color: var(--brand-blue-mid); }
+    .card-exec-icon.t3 { background: var(--brand-amber-light); border-color: var(--brand-amber-mid); }
+
+    /* Per-tool schedule badge */
+    .card-exec-schedule.t1 { background: var(--orange-light);   color: var(--orange);       border-color: var(--orange-mid); }
+    .card-exec-schedule.t2 { background: var(--brand-blue-light); color: var(--brand-blue);  border-color: var(--brand-blue-mid); }
+    .card-exec-schedule.t3 { background: var(--brand-amber-light); color: #c07800; border-color: var(--brand-amber-mid); }
+
+    /* Per-tool execute button */
+    .btn-exec.t1 { background: var(--orange); }
+    .btn-exec.t1:hover:not(:disabled) { background: #e57d10; }
+    .btn-exec.t2 { background: var(--brand-blue); }
+    .btn-exec.t2:hover:not(:disabled) { background: #1d90c7; }
+    .btn-exec.t3 { background: var(--brand-amber); }
+    .btn-exec.t3:hover:not(:disabled) { background: #d88010; }
+
+    /* Default btn-exec (no specific tool) — dark gray */
+    .btn-exec:not(.t1):not(.t2):not(.t3) { background: var(--dark); }
+    .btn-exec:not(.t1):not(.t2):not(.t3):hover:not(:disabled) { background: var(--orange); }
+
+    /* Calendar pills per tool */
+    .pill-t1 { background: var(--orange-light); color: var(--orange); border: 1px solid var(--orange-mid); font-weight: bold; }
+    .pill-t2 { background: var(--brand-blue-light); color: var(--brand-blue); border: 1px solid var(--brand-blue-mid); font-weight: bold; }
+    .pill-t3 { background: var(--brand-amber-light); color: #c07800; border: 1px solid var(--brand-amber-mid); font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- LOGIN OVERLAY                                   -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="logo-box">BEST</div>
+      <div class="login-brand-text">
+        Asistente de Ventas IA
+        <span>Become. Evolve. Succeed. Thrive.</span>
+      </div>
+    </div>
+
+    <div class="login-title">Inicia sesión</div>
+    <div class="login-subtitle">
+      Conecta tu cuenta de Zoho CRM y tu correo Microsoft 365 para que el asistente
+      pueda gestionar tu seguimiento de leads y oportunidades.
+    </div>
+
+    <!-- Paso 1: Perfil -->
+    <div class="login-step active" id="step-1">
+      <div class="login-step-header">
+        <div class="login-step-num" id="step-1-num">1</div>
+        <div>
+          <div class="login-step-title">Tu información</div>
+          <div class="login-step-subtitle">Datos que aparecerán en la firma del correo</div>
+        </div>
+      </div>
+      <div class="login-input-group">
+        <label for="in-name">Nombre completo</label>
+        <input class="login-input" type="text" id="in-name" placeholder="Ej. María López Hernández" autocomplete="name" />
+      </div>
+      <div class="login-input-group">
+        <label for="in-role">Puesto</label>
+        <input class="login-input" type="text" id="in-role" placeholder="Account Manager" value="Account Manager" />
+      </div>
+      <div class="login-input-group">
+        <label for="in-signature">Nombre que aparecerá en la firma</label>
+        <input class="login-input" type="text" id="in-signature" placeholder="Ej. María BEST" />
+      </div>
+    </div>
+
+    <!-- Paso 2: Zoho CRM -->
+    <div class="login-step" id="step-2">
+      <div class="login-step-header">
+        <div class="login-step-num" id="step-2-num">2</div>
+        <div>
+          <div class="login-step-title">Conecta tu Zoho CRM</div>
+          <div class="login-step-subtitle">Acceso a leads, contactos y oportunidades</div>
+        </div>
+      </div>
+      <button class="oauth-btn zoho" id="btn-zoho" onclick="startOAuth('zoho')">
+        <span class="oauth-logo">Z</span>
+        <span id="lbl-zoho">Conectar con Zoho CRM</span>
+      </button>
+    </div>
+
+    <!-- Paso 3: Microsoft 365 -->
+    <div class="login-step" id="step-3">
+      <div class="login-step-header">
+        <div class="login-step-num" id="step-3-num">3</div>
+        <div>
+          <div class="login-step-title">Conecta tu Microsoft 365</div>
+          <div class="login-step-subtitle">Acceso a correo Outlook para crear borradores</div>
+        </div>
+      </div>
+      <button class="oauth-btn ms" id="btn-ms" onclick="startOAuth('ms')">
+        <span class="oauth-logo ms">M</span>
+        <span id="lbl-ms">Conectar con Microsoft 365</span>
+      </button>
+    </div>
+
+    <button class="login-enter" id="btn-enter" onclick="doLogin()" disabled>
+      Entrar al Asistente →
+    </button>
+
+    <div class="login-security">
+      <strong>🔒 Seguridad:</strong> La app usa OAuth 2.0 — nunca almacenamos tu
+      contraseña. Los tokens se guardan cifrados y expiran automáticamente. Puedes
+      revocar el acceso en cualquier momento desde tu cuenta Zoho o Microsoft.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- OAUTH MODAL (simulated provider window)         -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="oauth-modal">
+  <div class="oauth-window">
+    <div class="oauth-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="url" id="oauth-url">accounts.zoho.com/oauth/v2/auth</div>
+    </div>
+    <div id="oauth-step-1" class="oauth-content">
+      <div class="oauth-logo-big" id="oauth-logo-big">Z</div>
+      <div class="oauth-title" id="oauth-title">Iniciar sesión en Zoho</div>
+      <div class="oauth-sub">Ingresa las credenciales de tu cuenta corporativa BEST</div>
+      <input class="oauth-input" type="email" id="oauth-email" placeholder="tu.correo@best.org.mx" />
+      <input class="oauth-input" type="password" id="oauth-pass" placeholder="Contraseña" />
+      <div class="oauth-actions">
+        <button class="oauth-cancel" onclick="closeOAuth()">Cancelar</button>
+        <button class="oauth-authorize" id="oauth-continue" onclick="oauthContinue()">Continuar</button>
+      </div>
+    </div>
+    <div id="oauth-step-2" class="oauth-content" style="display:none;">
+      <div class="oauth-logo-big" id="oauth-logo-big-2">Z</div>
+      <div class="oauth-title" id="oauth-title-2">Autorizar acceso</div>
+      <div class="oauth-sub" id="oauth-sub-2">
+        El <strong>Asistente de Ventas BEST</strong> quiere acceder a tu cuenta.
+      </div>
+      <div class="oauth-consent-scope">
+        <strong>Permisos solicitados:</strong>
+        <ul id="oauth-scopes"></ul>
+      </div>
+      <div class="oauth-actions">
+        <button class="oauth-cancel" onclick="closeOAuth()">Denegar</button>
+        <button class="oauth-authorize" id="oauth-authorize" onclick="oauthAuthorize()">Autorizar</button>
+      </div>
+    </div>
+    <div id="oauth-step-3" class="oauth-spinner-box" style="display:none;">
+      <div class="oauth-spinner-big"></div>
+      <div style="font-size:13px;color:var(--dark);">Completando autenticación...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- MAIN APP (hidden until login)                   -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="app" style="display:none;">
+
+<header>
+  <div class="header-logo">
+    <div class="logo-box">BEST</div>
+    <div>
+      <div class="header-title">Asistente de Ventas con IA</div>
+      <div class="header-sub">Become. Evolve. Succeed. Thrive.</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="conn-chips">
+      <span class="conn-chip" title="Zoho CRM conectado"><span class="dot"></span>Zoho CRM</span>
+      <span class="conn-chip" title="Microsoft 365 conectado"><span class="dot"></span>Outlook</span>
+    </div>
+    <div class="header-user">
+      <strong id="user-name">—</strong>
+      <span id="user-role">—</span>
+    </div>
+    <button class="logout-btn" onclick="logout()">Cerrar sesión</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- STATUS -->
+  <div class="section-title">Estado del sistema</div>
+  <div class="status-banner">
+    <div class="status-dot"></div>
+    <div class="status-text">
+      <strong>🤖 Asistente activo — 3 herramientas programadas</strong>
+      <p>Al hacer clic en "Ejecutar ahora", la app arma el comando exacto para Claude y te lo copia listo para pegar en tu Cowork. Claude entra a Zoho y Outlook por ti y genera los borradores con tu firma.</p>
+    </div>
+  </div>
+
+  <!-- HERRAMIENTAS -->
+  <div class="section-title">Herramientas</div>
+
+  <!-- 3 TARJETAS EJECUTIVAS SIMÉTRICAS -->
+  <div class="tools-trio">
+
+    <!-- 1. SEGUIMIENTO SEMANAL DE LEADS — Naranja corporativo #FF8F21 -->
+    <div class="card-exec t1">
+      <span class="card-exec-num t1">Herramienta 1</span>
+      <div class="card-exec-icon t1">📊</div>
+      <div class="card-exec-title">Seguimiento semanal de leads</div>
+      <div class="card-exec-desc">Revisa todos tus leads activos en Zoho CRM, analiza el historial de correos en Outlook, genera correos personalizados de seguimiento con tu firma y prepara el speech para las llamadas Webex de cada lead.</div>
+      <div class="card-exec-meta">
+        <span class="card-exec-schedule t1">📅 Lunes y Miércoles · 9:00 PM · Automático</span>
+        <div class="card-exec-lastrun">Última ejecución: <span class="ok" id="last-semanal">✓ Mié 23 Abr · 9:00 PM</span></div>
+      </div>
+      <button class="btn-exec t1" id="btn-semanal" onclick="runTool('semanal', this)">
+        <span class="spinner" id="spin-semanal"></span>
+        <span id="lbl-semanal">▶ Ejecutar ahora</span>
+      </button>
+    </div>
+
+    <!-- 2. SEGUIMIENTO A OPORTUNIDADES — Azul BEST #32B1E7 (Pantone 2190 C) -->
+    <div class="card-exec t2">
+      <span class="card-exec-num t2">Herramienta 2</span>
+      <div class="card-exec-icon t2">📋</div>
+      <div class="card-exec-title">Seguimiento a Oportunidades</div>
+      <div class="card-exec-desc">Lee todas las notas del CRM y todo el historial de correos del cliente, analiza el contexto completo del deal y redacta el seguimiento como Reply All al hilo activo, con los antecedentes citados.</div>
+      <div class="card-exec-meta">
+        <span class="card-exec-schedule t2">📅 Martes y Jueves · 9:00 PM · Automático</span>
+        <div class="card-exec-lastrun">Última ejecución: <span class="ok" id="last-h2">✓ Jue 24 Abr · 9:00 PM</span></div>
+      </div>
+      <button class="btn-exec t2" id="btn-h2" onclick="runTool('h2', this)">
+        <span class="spinner" id="spin-h2"></span>
+        <span id="lbl-h2">▶ Ejecutar ahora</span>
+      </button>
+    </div>
+
+    <!-- 3. ENCUENTRA LEADS — Ámbar BEST #FA9D1D (Pantone 144 C) -->
+    <div class="card-exec t3">
+      <span class="card-exec-num t3">Herramienta 3</span>
+      <div class="card-exec-icon t3">🔍</div>
+      <div class="card-exec-title">Encuentra Leads</div>
+      <div class="card-exec-desc">Encuentra 3 empresas B2B en México candidatas para venta de infraestructura Cisco. Genera tabla con contacto, speech de 30 seg para llamada Webex y correo de primer contacto personalizado.</div>
+      <div class="card-exec-meta">
+        <span class="card-exec-schedule t3">📅 Diario · 11:07 PM · Automático</span>
+        <div class="card-exec-lastrun">Última ejecución: <span class="ok" id="last-h3">✓ Sáb 25 Abr · 11:07 PM</span></div>
+      </div>
+      <button class="btn-exec t3" id="btn-h3" onclick="runTool('h3', this)">
+        <span class="spinner" id="spin-h3"></span>
+        <span id="lbl-h3">▶ Ejecutar ahora</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- NOTA SOBRE MODO BORRADOR -->
+  <div style="background:var(--orange-light);border:1px solid var(--orange-mid);border-radius:8px;padding:12px 16px;margin-top:14px;font-size:12px;color:var(--darker);display:flex;gap:10px;align-items:flex-start;">
+    <span style="font-size:16px;flex-shrink:0;">⚠️</span>
+    <span><strong>Modo Borrador activo:</strong> Los correos se guardan como borrador en Outlook para revisión antes de enviar. Al hacer clic en "Ejecutar ahora", la app genera el comando exacto para Claude y lo deja listo para pegarlo en tu Cowork — Claude ejecuta el trabajo real y puedes ver el progreso en vivo.</span>
+  </div>
+
+  <!-- CALENDARIO -->
+  <div class="section-title">Calendario semanal</div>
+  <div class="schedule-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Día</th>
+          <th style="color:#FF8F21;">● Seg. semanal de leads</th>
+          <th style="color:#32B1E7;">● Seg. a Oportunidades</th>
+          <th style="color:#FA9D1D;">● Encuentra Leads</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Lunes</td>
+          <td><span class="pill pill-t1">✓ 9:00 PM</span></td>
+          <td><span class="pill pill-gray">—</span></td>
+          <td><span class="pill pill-t3">✓ 11:07 PM</span></td>
+        </tr>
+        <tr>
+          <td>Martes</td>
+          <td><span class="pill pill-gray">—</span></td>
+          <td><span class="pill pill-t2">✓ 9:00 PM</span></td>
+          <td><span class="pill pill-t3">✓ 11:07 PM</span></td>
+        </tr>
+        <tr>
+          <td>Miércoles</td>
+          <td><span class="pill pill-t1">✓ 9:00 PM</span></td>
+          <td><span class="pill pill-gray">—</span></td>
+          <td><span class="pill pill-t3">✓ 11:07 PM</span></td>
+        </tr>
+        <tr>
+          <td>Jueves</td>
+          <td><span class="pill pill-gray">—</span></td>
+          <td><span class="pill pill-t2">✓ 9:00 PM</span></td>
+          <td><span class="pill pill-t3">✓ 11:07 PM</span></td>
+        </tr>
+        <tr>
+          <td>Viernes</td>
+          <td><span class="pill pill-gray">—</span></td>
+          <td><span class="pill pill-gray">—</span></td>
+          <td><span class="pill pill-t3">✓ 11:07 PM</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TAREAS PROGRAMADAS -->
+  <div class="section-title">Tareas programadas activas</div>
+  <div class="schedule-table">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Herramienta</th><th>Horario</th><th>Próxima ejecución</th><th>Estado</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="text-align:center;"><span class="pill pill-t1" style="font-size:11px;font-weight:900;">1</span></td>
+          <td>
+            <strong style="color:var(--orange);">Seguimiento semanal de leads</strong><br>
+            <span style="font-size:10px;color:var(--mid);">seguimiento-semanal-leads</span>
+          </td>
+          <td><strong>Lunes y Miércoles</strong> · 9:00 PM</td>
+          <td style="font-size:11px;">Lun 27 Abr · 9:00 PM</td>
+          <td><span class="pill pill-green">● Activo</span></td>
+        </tr>
+        <tr>
+          <td style="text-align:center;"><span class="pill pill-t2" style="font-size:11px;font-weight:900;">2</span></td>
+          <td>
+            <strong style="color:var(--brand-blue);">Seguimiento a Oportunidades</strong><br>
+            <span style="font-size:10px;color:var(--mid);">seg-oportunidades</span>
+          </td>
+          <td><strong>Martes y Jueves</strong> · 9:00 PM</td>
+          <td style="font-size:11px;">Mar 28 Abr · 9:00 PM</td>
+          <td><span class="pill pill-green">● Activo</span></td>
+        </tr>
+        <tr>
+          <td style="text-align:center;"><span class="pill pill-t3" style="font-size:11px;font-weight:900;">3</span></td>
+          <td>
+            <strong style="color:#c07800;">Encuentra Leads</strong><br>
+            <span style="font-size:10px;color:var(--mid);">encuentra-leads-diario</span>
+          </td>
+          <td><strong>Diario</strong> · 11:07 PM</td>
+          <td style="font-size:11px;">Hoy · 11:07 PM</td>
+          <td><span class="pill pill-green">● Activo</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ACTIVIDAD RECIENTE -->
+  <div class="section-title">Actividad reciente</div>
+  <div class="log-box" id="log">
+    <div class="log-line"><span class="log-time">Abr 20 23:07</span><span class="log-msg ok">✓ Encuentra Leads completada — 3 nuevos leads B2B identificados</span></div>
+    <div class="log-line"><span class="log-time">Abr 17 13:53</span><span class="log-msg ok">✓ Seguimiento semanal de leads completado — 6 leads procesados, borradores en Outlook</span></div>
+    <div class="log-line"><span class="log-time">Abr 17 07:05</span><span class="log-msg ok">✓ Seguimiento a Oportunidades completado — oportunidades procesadas, borradores en Outlook</span></div>
+    <div class="log-line"><span class="log-time">Abr 16 23:07</span><span class="log-msg info">→ Borrador guardado: Gabriel Guzmán (Farmacias Jomar)</span></div>
+    <div class="log-line"><span class="log-time">Abr 15 23:07</span><span class="log-msg ok">✓ Encuentra Leads completada — 3 nuevos leads B2B identificados</span></div>
+  </div>
+
+  <!-- REQUISITO OPERATIVO ACTUAL -->
+  <div class="section-title">Requisito de operación (demo actual)</div>
+  <div style="background:var(--white);border-radius:10px;padding:16px 18px;box-shadow:0 1px 6px rgba(0,0,0,0.07);display:flex;gap:14px;align-items:flex-start;">
+    <span style="font-size:24px;flex-shrink:0;">🖥️</span>
+    <div>
+      <div style="font-size:13px;font-weight:bold;margin-bottom:6px;">Chrome y Claude (Cowork) abiertos durante la ejecución</div>
+      <div style="font-size:12px;color:var(--mid);line-height:1.6;">
+        En esta versión demo, Claude accede a Outlook Web y Zoho CRM usando tu sesión ya iniciada en Chrome. Al hacer clic en "Ejecutar ahora", la app copia automáticamente el comando; lo pegas en tu Claude Cowork y él hace el trabajo en vivo.
+      </div>
+    </div>
+  </div>
+
+  <!-- PRÓXIMOS PASOS: VERSIÓN MULTI-USUARIO -->
+  <div class="section-title">Próximos pasos — visión multi-usuario</div>
+  <div style="background:linear-gradient(135deg, var(--white) 0%, var(--orange-light) 100%);border:1px solid var(--orange-mid);border-radius:10px;padding:16px 18px;box-shadow:0 1px 6px rgba(0,0,0,0.07);display:flex;gap:14px;align-items:flex-start;">
+    <span style="font-size:24px;flex-shrink:0;">🌐</span>
+    <div>
+      <div style="font-size:13px;font-weight:bold;margin-bottom:6px;color:var(--darker);">App web multi-usuario para todos los AMs de BEST</div>
+      <div style="font-size:12px;color:var(--dark);line-height:1.6;">
+        La siguiente fase convierte el asistente en una app web corporativa donde cada Account Manager inicia sesión con sus credenciales Zoho y Microsoft 365 (OAuth). Corre 24/7 en servidores de BEST, sin requerir Chrome ni extensiones. Plan técnico y arquitectura listos para revisión con TI.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- EXECUTION DRAWER -->
+<div id="exec-drawer">
+  <div class="drawer-header">
+    <div class="drawer-title">
+      <span id="drawer-icon">⚡</span>
+      <span id="drawer-tool-name">Ejecutando herramienta...</span>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="exec-steps" id="exec-steps"></div>
+    <div class="exec-prompt-box" id="prompt-box">
+      <div class="exec-prompt-label">📋 Comando listo para Claude (Cowork)</div>
+      <div class="exec-prompt-text" id="prompt-text"></div>
+      <button class="btn-copy" id="btn-copy" onclick="copyPrompt()">📋 Copiar y pegar en Claude</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<footer>
+  <p>Asistente de Ventas con IA · <a href="https://www.best.org.mx" target="_blank">www.best.org.mx</a> · Soporte: 55 7825 4444</p>
+  <p style="margin-top:4px;">Concurso "Mejor Proyecto con IA" — Abril 2026</p>
+</footer>
+
+</div>
+<!-- end #app -->
+
+<script>
+  // ════════════════════════════════════════════════════════════════
+  // STATE — per-session, in-memory (no storage, each browser = own session)
+  // ════════════════════════════════════════════════════════════════
+  const state = {
+    user: { name: '', role: '', email: '', firstName: '', signature: '' },
+    zoho: { connected: false, account: '' },
+    ms:   { connected: false, account: '' }
+  };
+  let oauthProvider = null; // 'zoho' | 'ms' during an OAuth flow
+
+  // ════════════════════════════════════════════════════════════════
+  // LOGIN FLOW
+  // ════════════════════════════════════════════════════════════════
+  function updateLoginState() {
+    const name = document.getElementById('in-name').value.trim();
+    const sig = document.getElementById('in-signature').value.trim();
+    const step1Ok = name.length > 2 && sig.length > 0;
+    document.getElementById('step-1').classList.toggle('done', step1Ok);
+    document.getElementById('step-1-num').textContent = step1Ok ? '✓' : '1';
+
+    document.getElementById('step-2').classList.toggle('done', state.zoho.connected);
+    document.getElementById('step-2-num').textContent = state.zoho.connected ? '✓' : '2';
+
+    document.getElementById('step-3').classList.toggle('done', state.ms.connected);
+    document.getElementById('step-3-num').textContent = state.ms.connected ? '✓' : '3';
+
+    const allDone = step1Ok && state.zoho.connected && state.ms.connected;
+    document.getElementById('btn-enter').disabled = !allDone;
+  }
+
+  ['in-name','in-role','in-signature'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateLoginState);
+  });
+  // Auto-fill signature suggestion from first name
+  document.getElementById('in-name').addEventListener('input', (e) => {
+    const sigField = document.getElementById('in-signature');
+    const first = e.target.value.trim().split(/\s+/)[0] || '';
+    if (!sigField.dataset.touched && first) {
+      sigField.value = first + ' BEST';
+    }
+  });
+  document.getElementById('in-signature').addEventListener('input', (e) => {
+    e.target.dataset.touched = '1';
+  });
+
+  // ── OAuth modal (simulated provider window) ─────────────────────
+  function startOAuth(provider) {
+    oauthProvider = provider;
+    const isZoho = provider === 'zoho';
+
+    // Reset modal to step 1
+    document.getElementById('oauth-step-1').style.display = 'block';
+    document.getElementById('oauth-step-2').style.display = 'none';
+    document.getElementById('oauth-step-3').style.display = 'none';
+
+    // Branding
+    document.getElementById('oauth-url').textContent = isZoho
+      ? 'accounts.zoho.com/oauth/v2/auth?client_id=best-asistente&scope=ZohoCRM.modules.ALL'
+      : 'login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=best-asistente&scope=Mail.ReadWrite';
+
+    const logo = document.getElementById('oauth-logo-big');
+    const logo2 = document.getElementById('oauth-logo-big-2');
+    logo.className = 'oauth-logo-big ' + provider;
+    logo2.className = 'oauth-logo-big ' + provider;
+    logo.textContent = isZoho ? 'Z' : 'M';
+    logo2.textContent = isZoho ? 'Z' : 'M';
+
+    document.getElementById('oauth-title').textContent = isZoho ? 'Iniciar sesión en Zoho' : 'Iniciar sesión en Microsoft';
+    document.getElementById('oauth-title-2').textContent = 'Autorizar acceso';
+    document.getElementById('oauth-sub-2').innerHTML = `El <strong>Asistente de Ventas BEST</strong> quiere acceder a tu cuenta de ${isZoho ? 'Zoho CRM' : 'Microsoft 365'}.`;
+
+    const authBtn = document.getElementById('oauth-authorize');
+    authBtn.className = 'oauth-authorize ' + provider;
+
+    // Scopes
+    const scopes = isZoho ? [
+      'Leer y escribir leads, contactos y oportunidades',
+      'Leer y crear notas en registros del CRM',
+      'Leer actividad e historial de interacciones'
+    ] : [
+      'Leer tus correos de Outlook (Mail.Read)',
+      'Crear borradores en tu buzón (Mail.ReadWrite)',
+      'Leer tu perfil y calendario (User.Read, Calendars.Read)'
+    ];
+    document.getElementById('oauth-scopes').innerHTML = scopes.map(s => `<li>${s}</li>`).join('');
+
+    // Pre-fill email if user already typed something
+    document.getElementById('oauth-email').value = '';
+    document.getElementById('oauth-pass').value = '';
+
+    document.getElementById('oauth-modal').classList.add('open');
+    setTimeout(() => document.getElementById('oauth-email').focus(), 100);
+  }
+
+  function closeOAuth() {
+    document.getElementById('oauth-modal').classList.remove('open');
+    oauthProvider = null;
+  }
+
+  function oauthContinue() {
+    const email = document.getElementById('oauth-email').value.trim();
+    const pass = document.getElementById('oauth-pass').value;
+    if (!email || !email.includes('@')) {
+      alert('Ingresa un correo válido');
+      return;
+    }
+    if (!pass) {
+      alert('Ingresa tu contraseña');
+      return;
+    }
+    // Move to consent screen
+    document.getElementById('oauth-step-1').style.display = 'none';
+    document.getElementById('oauth-step-2').style.display = 'block';
+  }
+
+  function oauthAuthorize() {
+    const email = document.getElementById('oauth-email').value.trim();
+    // Show spinner
+    document.getElementById('oauth-step-2').style.display = 'none';
+    document.getElementById('oauth-step-3').style.display = 'block';
+
+    setTimeout(() => {
+      // "Callback" received
+      if (oauthProvider === 'zoho') {
+        state.zoho.connected = true;
+        state.zoho.account = email;
+        document.getElementById('btn-zoho').classList.add('connected');
+        document.getElementById('lbl-zoho').textContent = '✓ Conectado: ' + email;
+      } else {
+        state.ms.connected = true;
+        state.ms.account = email;
+        document.getElementById('btn-ms').classList.add('connected');
+        document.getElementById('lbl-ms').textContent = '✓ Conectado: ' + email;
+        // Auto-fill the profile email field if empty — most AMs have same email for M365
+        if (!document.getElementById('in-name').value && email.includes('@best.org.mx')) {
+          // don't overwrite name, but remember it
+        }
+      }
+      closeOAuth();
+      updateLoginState();
+    }, 1400);
+  }
+
+  // ── Finalize login ─────────────────────────────────────────────
+  function doLogin() {
+    const name = document.getElementById('in-name').value.trim();
+    const role = document.getElementById('in-role').value.trim() || 'Account Manager';
+    const signature = document.getElementById('in-signature').value.trim();
+    const email = state.ms.account || state.zoho.account || '';
+
+    state.user.name = name;
+    state.user.role = role;
+    state.user.email = email;
+    state.user.firstName = name.split(/\s+/)[0];
+    state.user.signature = signature;
+
+    // Populate header
+    document.getElementById('user-name').textContent = name;
+    document.getElementById('user-role').textContent = role;
+
+    // Hide overlay, show app
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+
+    showToast(`👋 Bienvenido/a, ${state.user.firstName}`, 'success');
+  }
+
+  function logout() {
+    if (!confirm('¿Cerrar sesión? Se desconectarán Zoho CRM y Outlook.')) return;
+    // Reset state
+    state.user = { name:'', role:'', email:'', firstName:'', signature:'' };
+    state.zoho = { connected:false, account:'' };
+    state.ms = { connected:false, account:'' };
+
+    // Reset login form
+    document.getElementById('in-name').value = '';
+    document.getElementById('in-role').value = 'Account Manager';
+    document.getElementById('in-signature').value = '';
+    document.getElementById('in-signature').dataset.touched = '';
+    document.getElementById('btn-zoho').classList.remove('connected');
+    document.getElementById('lbl-zoho').textContent = 'Conectar con Zoho CRM';
+    document.getElementById('btn-ms').classList.remove('connected');
+    document.getElementById('lbl-ms').textContent = 'Conectar con Microsoft 365';
+
+    updateLoginState();
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-overlay').style.display = 'flex';
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // TOOL EXECUTION
+  // ════════════════════════════════════════════════════════════════
+  const TOOLS = {
+    semanal: {
+      name: 'Seguimiento Semanal de Leads',
+      icon: '📊',
+      steps: [
+        { icon: '🔄', text: 'Conectando con Zoho CRM...' },
+        { icon: '📋', text: 'Obteniendo leads activos del CRM (vista My Leads)...' },
+        { icon: '📧', text: 'Revisando historial de correos en Outlook por lead...' },
+        { icon: '✍️',  text: 'Generando correos de seguimiento personalizados...' },
+        { icon: '📝', text: 'Aplicando firma y guardando borradores en Outlook...' },
+        { icon: '📞', text: 'Preparando speech para llamadas Webex...' },
+        { icon: '✅', text: 'Borradores listos · Notas actualizadas en CRM' },
+      ],
+      prompt: (u) => `Ejecuta el seguimiento semanal de leads BEST: entra a Zoho CRM, obtén los leads de la vista "My Leads", revisa el historial de correos en Outlook para cada lead, genera un correo de seguimiento personalizado y guárdalo como borrador en Outlook con la firma "${u.signature}" (sin "Saludos"), agrega 2 notas de CRM por lead (resumen del correo y siguiente paso), y al final prepara el plan de llamadas Webex.`
+    },
+    h2: {
+      name: 'Seguimiento a Oportunidades',
+      icon: '📋',
+      steps: [
+        { icon: '🔄', text: 'Conectando con Zoho CRM...' },
+        { icon: '📋', text: 'Leyendo TODAS las notas del CRM por oportunidad...' },
+        { icon: '📧', text: 'Revisando historial completo de correos en Outlook (enviados y recibidos)...' },
+        { icon: '🧠', text: 'Analizando contexto: acuerdos, pendientes y señales de la negociación...' },
+        { icon: '👥', text: 'Identificando participantes del hilo activo (Para + CC)...' },
+        { icon: '✍️', text: 'Redactando correo con contexto completo · Reply All al hilo...' },
+        { icon: '📝', text: 'Aplicando firma y guardando borrador en Outlook...' },
+        { icon: '✅', text: 'Borradores listos · Notas actualizadas en CRM' },
+      ],
+      prompt: (u) => `Ejecuta el Seguimiento a Oportunidades siguiendo estos pasos EN ORDEN:
+
+PASO 1 — CRM: Entra a Zoho CRM, obtén todas las oportunidades abiertas asignadas a mí. Para cada oportunidad extrae: nombre del deal, empresa, contacto principal, etapa actual, monto, fecha de cierre estimada, y MUY IMPORTANTE: lee y resume TODAS las notas registradas en esa oportunidad desde el inicio (no solo la última), ordenadas de la más antigua a la más reciente.
+
+PASO 2 — HISTORIAL COMPLETO DE CORREOS EN OUTLOOK: Para el contacto de cada oportunidad, abre Outlook y revisa TODOS los correos enviados y recibidos con esa persona (bandeja de entrada, enviados y cualquier carpeta relacionada). Construye una línea de tiempo completa de la comunicación: fecha, dirección (enviado/recibido), asunto y puntos clave de cada correo. Identifica: temas tratados, compromisos adquiridos, dudas pendientes, propuestas enviadas y cualquier señal de interés o resistencia.
+
+PASO 3 — ANÁLISIS DE CONTEXTO: Con la información del PASO 1 (todas las notas del CRM) y del PASO 2 (todos los correos), construye un resumen de situación para ese deal: ¿en qué punto real está la negociación?, ¿qué se ha prometido o acordado?, ¿qué está pendiente de respuesta?, ¿cuál es el siguiente paso lógico para avanzar?
+
+PASO 4 — HILO ACTIVO: Identifica el hilo de correos más reciente con el contacto. Extrae:
+  a) Todos los participantes (Para + CC) — serán los destinatarios del nuevo correo.
+  b) El asunto original del hilo (mantener con "Re: " para conservar continuidad).
+  c) El último correo completo (fecha, remitente, cuerpo) para citarlo al final del borrador.
+
+PASO 5 — REDACTAR EL CORREO: Crea el borrador como RESPUESTA AL HILO (Reply All), dirigido a todos los participantes del PASO 4. Estructura del borrador:
+  [NUEVO MENSAJE] — Redactado con base en el contexto completo del PASO 3. Debe ser específico, mencionar puntos concretos de conversaciones anteriores, dar continuidad natural a la relación y tener un llamado a la acción claro alineado a la etapa del deal.
+  [FIRMA] — Aplicar la firma "${u.signature}" (Insert > Signature > ${u.signature}, sin usar la palabra "Saludos").
+  [HILO CITADO] — Separador "--- Correo anterior ---" seguido del último correo del hilo.
+
+PASO 6 — CRM: Agrega una nota en Zoho CRM por cada oportunidad con: fecha, resumen del análisis realizado, puntos clave del historial, contenido del correo redactado y siguiente paso esperado.
+
+REGLA ESPECIAL — CANAL WHATSAPP: Antes de redactar cualquier correo, revisa TODAS las notas del CRM de esa oportunidad. Si en alguna nota aparece cualquier indicación de que el seguimiento es solo por WhatsApp (ejemplos: "solo WhatsApp", "no enviar correos", "contactar por WA", "prefiere WhatsApp", "no correo", o variantes similares), NO generes borrador de correo para esa oportunidad. En su lugar, registra en el reporte final que esa oportunidad se sigue exclusivamente por WhatsApp.
+
+REPORTE FINAL: Al terminar de procesar todas las oportunidades, genera un correo de resumen ejecutivo y envíalo DE ${u.email} PARA ${u.email} (de mí para mí mismo). El correo debe tener el asunto "Reporte Seguimiento a Oportunidades — [fecha de hoy]" y contener una tabla con una fila por oportunidad procesada con las siguientes columnas:
+  - Nombre de la oportunidad
+  - Empresa y nombre del prospecto
+  - Canal de seguimiento (Correo / Solo WhatsApp)
+  - Resumen del correo propuesto (primeras 2-3 líneas) o "N/A — seguimiento por WhatsApp"
+  - Lo que se documentó en el CRM (resumen de la nota agregada)
+  - Siguiente paso recomendado
+
+IMPORTANTE: Si no existe historial de correos con el contacto, basa el correo únicamente en las notas del CRM y créalo como correo nuevo (no como respuesta). Anótalo en el CRM como primer contacto vía correo.`
+    },
+    h3: {
+      name: 'Encuentra Leads',
+      icon: '🔍',
+      steps: [
+        { icon: '🔍', text: 'Buscando empresas B2B con necesidades de infraestructura Cisco...' },
+        { icon: '🏢', text: 'Analizando perfil de empresa y sector...' },
+        { icon: '👤', text: 'Identificando contacto de TI o decisor...' },
+        { icon: '✍️',  text: 'Generando speech personalizado para llamada Webex...' },
+        { icon: '📧', text: 'Redactando correo de primer contacto...' },
+        { icon: '📊', text: 'Compilando tabla de leads calificados...' },
+        { icon: '✅', text: 'Encuentra Leads completada · 3 leads B2B identificados y listos' },
+      ],
+      prompt: (u) => `Ejecuta la Herramienta 3 de búsqueda de leads: encuentra 3 empresas B2B en México que sean candidatas para venta de infraestructura Cisco (switches, routers, APs, seguridad), identifica el contacto de TI o director decisor, y genera una tabla con: empresa, giro, nombre del contacto, correo estimado, necesidad detectada, speech de 30 segundos para llamada Webex y correo de primer contacto personalizado con firma "${u.signature}". Guarda el resultado como archivo en el workspace.`
+    }
+  };
+
+  let currentBtn = null;
+  let currentBtnId = null;
+  let currentPrompt = '';
+
+  function runTool(toolId, btn) {
+    const tool = TOOLS[toolId];
+    if (!tool) return;
+
+    btn.disabled = true;
+    const spinner = document.getElementById('spin-' + toolId);
+    const lbl = document.getElementById('lbl-' + toolId);
+    spinner.style.display = 'block';
+    lbl.textContent = 'Ejecutando...';
+    currentBtn = btn;
+    currentBtnId = toolId;
+    currentPrompt = tool.prompt(state.user);
+
+    document.getElementById('drawer-icon').textContent = tool.icon;
+    document.getElementById('drawer-tool-name').textContent = tool.name;
+    const stepsEl = document.getElementById('exec-steps');
+    stepsEl.innerHTML = '';
+    document.getElementById('prompt-box').classList.remove('show');
+    document.getElementById('exec-drawer').classList.add('open');
+
+    addLog(`⚡ Ejecución iniciada — ${tool.name}`, 'info');
+    showToast(`⚡ ${tool.name} iniciada`, 'warning');
+
+    const stepEls = [];
+    tool.steps.forEach((step, i) => {
+      const el = document.createElement('div');
+      el.className = 'exec-step';
+      el.innerHTML = `<span class="exec-step-icon">${step.icon}</span><span>${step.text}</span>`;
+      stepsEl.appendChild(el);
+      stepEls.push(el);
+      const delay = 600 + i * 700;
+      setTimeout(() => {
+        el.classList.add('visible');
+        if (i > 0) stepEls[i - 1].classList.add('done');
+      }, delay);
+    });
+
+    const total = 600 + tool.steps.length * 700;
+
+    setTimeout(() => {
+      if (stepEls.length > 0) stepEls[stepEls.length - 1].classList.add('done');
+
+      // Show prompt box (ready to paste into Cowork / Claude)
+      document.getElementById('prompt-text').textContent = currentPrompt;
+      document.getElementById('prompt-box').classList.add('show');
+
+      // Auto-copy to clipboard so she just pastes into Cowork
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentPrompt).then(() => {
+          const b = document.getElementById('btn-copy');
+          b.textContent = '✅ Copiado al portapapeles — pégalo en Claude';
+          b.classList.add('copied');
+          setTimeout(() => {
+            b.textContent = '📋 Copiar y pegar en Claude';
+            b.classList.remove('copied');
+          }, 4000);
+        }).catch(() => {});
+      }
+
+      addLog(`✓ ${tool.name} — comando listo para Claude`, 'ok');
+      showToast(`✅ Comando copiado — pégalo en tu Claude`, 'success');
+
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      lbl.textContent = '▶ Ejecutar ahora';
+    }, total + 400);
+  }
+
+  function copyPrompt() {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(currentPrompt).then(() => {
+        const b = document.getElementById('btn-copy');
+        b.textContent = '✅ Copiado — pégalo en Claude';
+        b.classList.add('copied');
+        setTimeout(() => {
+          b.textContent = '📋 Copiar y pegar en Claude';
+          b.classList.remove('copied');
+        }, 2500);
+      }).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+  }
+
+  function fallbackCopy() {
+    const ta = document.createElement('textarea');
+    ta.value = currentPrompt;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const b = document.getElementById('btn-copy');
+    b.textContent = '✅ Copiado';
+    b.classList.add('copied');
+    setTimeout(() => {
+      b.textContent = '📋 Copiar y pegar en Claude';
+      b.classList.remove('copied');
+    }, 2500);
+  }
+
+  function closeDrawer() {
+    document.getElementById('exec-drawer').classList.remove('open');
+    if (currentBtn) {
+      currentBtn.disabled = false;
+      const spinner = document.getElementById('spin-' + currentBtnId);
+      const lbl = document.getElementById('lbl-' + currentBtnId);
+      if (spinner) spinner.style.display = 'none';
+      if (lbl) lbl.textContent = '▶ Ejecutar ahora';
+    }
+  }
+
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show ' + (type || '');
+    setTimeout(() => { t.className = ''; }, 3000);
+  }
+
+  function addLog(msg, type) {
+    const box = document.getElementById('log');
+    const now = new Date();
+    const ts = now.toLocaleDateString('es-MX', {month:'short', day:'2-digit'}) + ' ' +
+               now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    line.innerHTML = `<span class="log-time">${ts}</span><span class="log-msg ${type||'info'}">${msg}</span>`;
+    box.insertBefore(line, box.firstChild);
+  }
+
+  // Initial state
+  updateLoginState();
+</script>
+</body>
+</html>

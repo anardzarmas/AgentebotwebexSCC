@@ -11,12 +11,12 @@ User: agarcen@best.org.mx · Org 651658110
 - Composio para Zoho y Outlook. Sin screenshots. Outlook = solo borradores (isDraft=true).
 
 ## F1 — Datos
-1. `ZOHOCRM_LIST_RECORDS(module=Potentials, cvid="2680941000000087569", fields="id,Deal_Name,Stage,Amount,Closing_Date,Account_Name,Contact_Name", per_page=100)`
+1. `ZOHO_GET_ZOHO_RECORDS(module=Potentials, cvid="{{zoho_view_potentials}}", fields="id,Deal_Name,Stage,Amount,Closing_Date,Account_Name,Contact_Name", per_page=100)`
 2. Omitir Stage ∈ {Closed Lost, Terminado}. Procesar ∈ {Negotiate, Comprar, Entregar}.
-3. Recolectar todos los Contact_Name.id de las oportunidades activas → una sola llamada:
-   `ZOHOCRM_LIST_RECORDS(module=Contacts, ids=[id1,id2,...], fields="id,Full_Name,Email")`
-4. Notas (paralelo): por cada oportunidad activa:
-   `ZOHOCRM_GET_RELATED_RECORDS(module=Potentials, id=ID, related=Notes, per_page=3, sort_by=Created_Time, sort_order=desc)`
+3. Recolectar todos los Contact_Name.id → una sola llamada:
+   `ZOHO_GET_ZOHO_RECORDS(module=Contacts, ids=[id1,id2,...], fields="id,Full_Name,Email")`
+4. Por cada oportunidad activa:
+   `ZOHO_GET_RELATED_RECORDS(module=Potentials, record_id=ID, related_list_api_name=Notes, per_page=3, sort_by=Created_Time, sort_order=desc)`
 
 ## F2 — Borradores Outlook (solo oportunidades con Email resuelto)
 ```
@@ -36,16 +36,14 @@ N Technology → contacto único Erendira Sánchez <emartinez@n.technology>. Un 
 
 ## F3 — Notas CRM (una sola llamada en lote)
 ```
-ZOHOCRM_CREATE_RECORDS(module=Notes, data=[
-  {
-    Note_Title: "Seguimiento preparado - <FECHA> (Herramienta 2 - <DIA>)",
-    Note_Content: "Contexto: stage <STAGE>, $<AMOUNT>, cierre <CLOSING_DATE>. <resumen nota reciente>\nAccion <FECHA>: borrador a <email> con asunto \"<ASUNTO>\".",
-    $se_module: "Potentials",
-    Parent_Id: {id: OPPORTUNITY_ID}
-  },
-  ... (un objeto por cada oportunidad procesada)
-])
+ZOHO_CREATE_ZOHO_RECORD(module=Notes, data={
+  Note_Title: "Seguimiento preparado - <FECHA> (Herramienta 2 - <DIA>)",
+  Note_Content: "Contexto: stage <STAGE>, $<AMOUNT>, cierre <CLOSING_DATE>. <resumen nota reciente>\nAccion <FECHA>: borrador a <email> con asunto \"<ASUNTO>\".",
+  $se_module: "Potentials",
+  Parent_Id: {id: OPPORTUNITY_ID}
+})
 ```
+Llamar una vez por cada oportunidad (en secuencia).
 
 ## Errores
 - Sin email tras lookup en lote → nota CRM sin Outlook. Stage desconocido → tratar como Negotiate.

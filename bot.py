@@ -38,8 +38,20 @@ Solo escribe el comando y yo me encargo del resto 🚀
 """
 
 
+DOMINIO_PERMITIDO = "best.org.mx"  # Solo emails de BEST pueden usar el bot
+
+
 def responder_en_background(room_id: str, am_email: str, herramientas: list[str]):
     """Corre el agente en un hilo separado y manda los resultados al chat."""
+
+    # Validar dominio
+    if not am_email.lower().endswith(f"@{DOMINIO_PERMITIDO}"):
+        webex_api.messages.create(
+            roomId=room_id,
+            markdown="🔒 Este bot es exclusivo para el equipo de **BEST Typhoon Technologies**.",
+        )
+        return
+
     cfg = find_am_by_email(am_email)
     if not cfg:
         webex_api.messages.create(

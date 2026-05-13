@@ -60,6 +60,17 @@ def list_all_ams() -> list[str]:
     ]
 
 
+def find_am_by_email(email: str) -> dict | None:
+    """Busca la config de un AM por su email. Usado por el bot de Webex."""
+    for path in CONFIG_DIR.glob("*.json"):
+        if path.stem == "am_example":
+            continue
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+        if cfg.get("email", "").lower() == email.lower():
+            return cfg
+    return None
+
+
 # ── Skill builder ─────────────────────────────────────────────────────────────
 def build_system_prompt(herramienta: str, cfg: dict) -> str:
     """Combina MASTER.md + SKILL.md y sustituye {{placeholders}} con datos del AM."""
@@ -116,7 +127,8 @@ def run_herramienta(herramienta: str, cfg: dict):
             report_path = ROOT / f"Reporte_Herramientas_{am_id}_{fecha}.md"
             report_path.write_text(final_text, encoding="utf-8")
             print(f"Reporte guardado: {report_path}")
-        break
+
+        return final_text  # ← devuelve el texto para que el bot lo mande al chat
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────

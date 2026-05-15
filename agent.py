@@ -472,17 +472,17 @@ def run_herramienta(herramienta: str, cfg: dict) -> str:
             # Para Groq: limitar campos por registro para no inflar el prompt
             if PROVIDER in ("groq", "ollama"):
                 keep_h1 = {"id","First_Name","Last_Name","Company","Email","Lead_Status"}
-                keep_h2 = {"id","Deal_Name","Stage","Amount","Closing_Date","Account_Name","Contact_Name","Email"}
+                keep_h2 = {"id","Deal_Name","Stage","Amount","Closing_Date","Account_Name","Contact_Name"}
                 keep    = keep_h1 if herramienta == "H1" else keep_h2
                 am_records = [{k: v for k, v in r.items() if k in keep} for r in am_records]
+            module_name = "Leads" if herramienta == "H1" else "Potentials"
             records_inject = (
-                f"\n\nREGISTROS PRE-CARGADOS (ya filtrados, NO llamar ZOHO_GET_ZOHO_RECORDS):\n"
+                f"\n\nREGISTROS PRE-CARGADOS de {module_name} (ya filtrados por owner):\n"
+                f"NO llames ZOHO_GET_ZOHO_RECORDS para {module_name} — usa los datos de abajo.\n"
+                f"SÍ puedes llamar ZOHO_GET_ZOHO_RECORDS para Contacts u otros módulos.\n"
                 + json.dumps(am_records, ensure_ascii=False, separators=(',', ':'))
             )
-            # Quitar ZOHO_GET_ZOHO_RECORDS de las tools para esta ejecución
-            tools = [t for t in tools
-                     if not (isinstance(t, dict)
-                             and t.get("function", {}).get("name") == "ZOHO_GET_ZOHO_RECORDS")]
+            # NOTA: NO eliminar ZOHO_GET_ZOHO_RECORDS — H2 la necesita para buscar Contacts
         else:
             records_inject = f"\n\nNo se encontraron registros activos para {cfg['email']}."
 

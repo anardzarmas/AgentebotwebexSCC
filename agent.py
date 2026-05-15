@@ -275,30 +275,30 @@ def _truncate_result(result, max_chars: int = 1500) -> str:
 
 
 _PROP_BLOAT = {"title", "examples", "human_parameter_name",
-               "human_parameter_description", "file_uploadable"}
+               "human_parameter_description", "file_uploadable",
+               "description", "default", "enum"}   # para Groq: eliminar desc y enum para ahorrar tokens
 
 def _slim_prop(prop: dict) -> dict:
-    """Elimina campos de UI que Composio agrega y que no aportan al LLM."""
-    p = {k: v for k, v in prop.items() if k not in _PROP_BLOAT and v is not None}
-    # Permitir integer o string: los LLMs open-source suelen devolver strings
-    if p.get("type") == "integer":
-        p["type"] = ["integer", "string"]
-    # Truncar descripciones largas
-    if isinstance(p.get("description"), str) and len(p["description"]) > 200:
-        p["description"] = p["description"][:200].rsplit(".", 1)[0] + "."
-    # Procesar anyOf / items recursivamente
+    """Elimina campos de UI y descripciones — el LLM ya sabe qué hacer por el SKILL.md."""
+    # Solo conservar type + estructura, sin descripciones ni bloat
+    p = {}
+    t = prop.get("type")
+    if t:
+        # Permitir integer o string: los LLMs open-source suelen devolver strings
+        p["type"] = ["integer", "string"] if t == "integer" else t
+    # Procesar anyOf / oneOf recursivamente (solo tipos)
     for key in ("anyOf", "oneOf"):
-        if key in p:
-            p[key] = [_slim_prop(x) if isinstance(x, dict) else x for x in p[key]]
-    if "items" in p and isinstance(p["items"], dict):
-        p["items"] = _slim_prop(p["items"])
-    if "properties" in p and isinstance(p["properties"], dict):
-        p["properties"] = {k: _slim_prop(v) for k, v in p["properties"].items()}
+        if key in prop:
+            p[key] = [_slim_prop(x) if isinstance(x, dict) else x for x in prop[key]]
+    if "items" in prop and isinstance(prop["items"], dict):
+        p["items"] = _slim_prop(prop["items"])
+    if "properties" in prop and isinstance(prop["properties"], dict):
+        p["properties"] = {k: _slim_prop(v) for k, v in prop["properties"].items()}
     return p
 
 
 def _clean_tools(tools: list) -> list:
-    """Limpia tools para Groq/Ollama: elimina strict:null, campos de UI y reduce tokens."""
+    """Limpia tools para Groq/Ollama: elimina strict, descripciones y reduce tokens al mínimo."""
     import copy
     cleaned = []
     for tool in copy.deepcopy(tools):
@@ -306,11 +306,13 @@ def _clean_tools(tools: list) -> list:
             continue
         fn = tool["function"]
         fn.pop("strict", None)
+        # Descripción del tool: solo primeras 60 chars (ya describimos en SKILL.md)
+        if isinstance(fn.get("description"), str):
+            fn["description"] = fn["description"][:60]
         params = fn.get("parameters", {})
-        # Limpiar propiedades
         props = params.get("properties", {})
         params["properties"] = {k: _slim_prop(v) for k, v in props.items()}
-        # Mantener solo required y properties
+        # Mantener solo type, properties y required
         for key in list(params.keys()):
             if key not in ("type", "properties", "required"):
                 del params[key]
@@ -467,9 +469,15 @@ def run_herramienta(herramienta: str, cfg: dict) -> str:
     if herramienta in ("H1", "H2"):
         am_records = _prefetch_am_records(herramienta, cfg)
         if am_records:
+            # Para Groq: limitar campos por registro para no inflar el prompt
+            if PROVIDER in ("groq", "ollama"):
+                keep_h1 = {"id","First_Name","Last_Name","Company","Email","Lead_Status"}
+                keep_h2 = {"id","Deal_Name","Stage","Amount","Closing_Date","Account_Name","Contact_Name","Email"}
+                keep    = keep_h1 if herramienta == "H1" else keep_h2
+                am_records = [{k: v for k, v in r.items() if k in keep} for r in am_records]
             records_inject = (
                 f"\n\nREGISTROS PRE-CARGADOS (ya filtrados, NO llamar ZOHO_GET_ZOHO_RECORDS):\n"
-                + json.dumps(am_records, ensure_ascii=False)
+                + json.dumps(am_records, ensure_ascii=False, separators=(',', ':'))
             )
             # Quitar ZOHO_GET_ZOHO_RECORDS de las tools para esta ejecución
             tools = [t for t in tools

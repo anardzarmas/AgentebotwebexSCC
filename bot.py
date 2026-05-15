@@ -10,6 +10,7 @@ Variables de entorno:
 
 import os
 import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 from webex_bot.webex_bot import WebexBot
 from webex_bot.models.command import Command
@@ -17,6 +18,22 @@ from webex_bot.models.response import Response
 from webexteamssdk import WebexTeamsAPI
 
 from agent import run_herramienta, find_am_by_email
+
+
+# ── Health check para Render ───────────────────────────────────────────────────
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, *args):
+        pass  # silenciar logs de HTTP
+
+def _start_health_server():
+    port = int(os.environ.get("PORT", 8080))
+    HTTPServer(("0.0.0.0", port), _HealthHandler).serve_forever()
+
+threading.Thread(target=_start_health_server, daemon=True).start()
 
 load_dotenv()
 
@@ -99,7 +116,9 @@ class HerramientaCommand(Command):
             args=(room_id, am_email, self.herramientas),
             daemon=True,
         ).start()
-        return Response()  # respuesta vacía — el hilo manda los mensajes
+        r = Response()
+        r.text = f"⏳ Recibido. Ejecutando **{', '.join(self.herramientas)}** para {am_email}..."
+        return r
 
 
 class AyudaCommand(Command):
@@ -121,11 +140,12 @@ if __name__ == "__main__":
     bot = WebexBot(
         teams_bot_token=os.environ["WEBEX_BOT_TOKEN"],
         bot_name="Asistente Ventas BEST",
+        bot_help_subtitle="👋 ¡Hola! ¿En qué puedo ayudarte hoy? Elige una opción:",
     )
-    bot.add_command(HerramientaCommand("H1",   ["H1"],           "Seguimiento de Leads"))
-    bot.add_command(HerramientaCommand("H2",   ["H2"],           "Seguimiento de Oportunidades"))
-    bot.add_command(HerramientaCommand("H3",   ["H3"],           "Reporte del día"))
-    bot.add_command(HerramientaCommand("todo", ["H1","H2","H3"], "Ejecuta H1 + H2 + H3"))
+    bot.add_command(HerramientaCommand("h1",   ["H1"],           "Seguimiento de Leads"))
+    bot.add_command(HerramientaCommand("h2",   ["H2"],           "Seguimiento de Oportunidades"))
+    bot.add_command(HerramientaCommand("h3",   ["H3"],           "Reporte del día"))
+    bot.add_command(HerramientaCommand("todo", ["H1","H2","H3"], "Ejecuta Todo"))
     bot.add_command(AyudaCommand())
 
     print("Bot BEST iniciado. Escuchando mensajes en Webex...")

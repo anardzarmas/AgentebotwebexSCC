@@ -24,8 +24,8 @@ En una sola respuesta, llama SIMULTÁNEAMENTE:
 1. Un `ZOHO_GET_ZOHO_RECORDS(module=Contacts, ids=[id1,id2,...], fields="id,Full_Name,Email")` para TODOS los contactos a la vez.
 2. Un `ZOHO_GET_RELATED_RECORDS` por cada oportunidad activa:
 ```
-ZOHO_GET_RELATED_RECORDS(module=Potentials, record_id=ID_1, related_list_api_name=Notes, per_page=2, sort_by=Created_Time, sort_order=desc)
-ZOHO_GET_RELATED_RECORDS(module=Potentials, record_id=ID_2, related_list_api_name=Notes, per_page=2, sort_by=Created_Time, sort_order=desc)
+ZOHO_GET_RELATED_RECORDS(module_api_name=Potentials, record_id=ID_1, related_list_api_name=Notes, fields="id,Note_Title,Note_Content,Created_Time", per_page=2, sort_by=Created_Time, sort_order=desc)
+ZOHO_GET_RELATED_RECORDS(module_api_name=Potentials, record_id=ID_2, related_list_api_name=Notes, fields="id,Note_Title,Note_Content,Created_Time", per_page=2, sort_by=Created_Time, sort_order=desc)
 ... (todos en la misma respuesta)
 ```
 

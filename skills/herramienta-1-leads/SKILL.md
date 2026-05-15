@@ -21,8 +21,8 @@ Omitir Lead_Status ∈ {Sin interes, Descartado, Lead desechado}. Guardar lista 
 ## FASE 2 — Obtener notas (TODO EN UNA SOLA RESPUESTA)
 En una sola respuesta, llama `ZOHO_GET_RELATED_RECORDS` para TODOS los leads activos simultáneamente:
 ```
-ZOHO_GET_RELATED_RECORDS(module=Leads, record_id=ID_1, related_list_api_name=Notes, per_page=2, sort_by=Created_Time, sort_order=desc)
-ZOHO_GET_RELATED_RECORDS(module=Leads, record_id=ID_2, related_list_api_name=Notes, per_page=2, sort_by=Created_Time, sort_order=desc)
+ZOHO_GET_RELATED_RECORDS(module_api_name=Leads, record_id=ID_1, related_list_api_name=Notes, fields="id,Note_Title,Note_Content,Created_Time", per_page=2, sort_by=Created_Time, sort_order=desc)
+ZOHO_GET_RELATED_RECORDS(module_api_name=Leads, record_id=ID_2, related_list_api_name=Notes, fields="id,Note_Title,Note_Content,Created_Time", per_page=2, sort_by=Created_Time, sort_order=desc)
 ... (un bloque por cada lead activo, todos en la misma respuesta)
 ```
 

@@ -65,6 +65,18 @@ ZOHO_CREATE_ZOHO_RECORD(module=Notes, data={
 - Sin email tras lookup en lote → nota CRM sin Outlook. Stage desconocido → tratar como Negotiate.
 
 ## Output
+Al terminar, muestra un resumen detallado con este formato exacto:
+
 ```
 H2 [FECHA] · procesadas:N · borradores:X · notas:X · sin_email:X · errores:X
+
+Oportunidades procesadas:
+• [Deal_Name] — [Account_Name] — Stage: [Stage] — $[Amount]
+  📧 Borrador: "[Asunto del email]"
+  📝 Nota CRM: "[Resumen breve de la nota registrada]"
+
+• [Deal_Name] — [Account_Name] — Stage: [Stage] — $[Amount]
+  📧 Borrador: "[Asunto del email]"
+  📝 Nota CRM: "[Resumen breve de la nota registrada]"
+... (un bloque por cada oportunidad procesada)
 ```

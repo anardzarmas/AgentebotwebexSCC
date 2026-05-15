@@ -57,6 +57,18 @@ ZOHO_CREATE_ZOHO_RECORD(module=Notes, data={
 - CREATE_RECORDS falla → continuar con siguiente lead.
 
 ## Output
+Al terminar, muestra un resumen detallado con este formato exacto:
+
 ```
 H1 [FECHA] · procesados:N · borradores:X · notas:X · sin_email:X · errores:X
+
+Leads procesados:
+• [Nombre Completo] — [Empresa] — Status: [Lead_Status]
+  📧 Borrador: "[Asunto del email]"
+  📝 Nota CRM: "[Resumen breve de la nota registrada]"
+
+• [Nombre Completo] — [Empresa] — Status: [Lead_Status]
+  📧 Borrador: "[Asunto del email]"
+  📝 Nota CRM: "[Resumen breve de la nota registrada]"
+... (un bloque por cada lead procesado)
 ```

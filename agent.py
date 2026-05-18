@@ -294,16 +294,27 @@ def create_draft(to_email: str, subject: str, body: str, entity_id: str) -> bool
 
 # ── PASO 5: Crear notas CRM en Zoho ───────────────────────────────────────────
 def create_crm_note(module: str, record_id: str, title: str, content: str, entity_id: str) -> bool:
+    """Usa el SDK de Composio (no HTTP directo) para manejar IDs bigint sin pérdida de precisión."""
     try:
-        _composio("ZOHO_CREATE_ZOHO_RECORD", {
-            "module_api_name": "Notes",
-            "record_id": record_id,          # top-level: Composio vincula la nota al registro
-            "data": [{
-                "Note_Title": title,
-                "Note_Content": content,
-                "se_module": module,
-            }]
-        }, entity_id)
+        if PROVIDER == "anthropic":
+            from composio_anthropic import ComposioToolSet
+        else:
+            from composio_openai import ComposioToolSet
+
+        toolset = ComposioToolSet(api_key=COMPOSIO_KEY, entity_id=entity_id)
+        toolset.execute_action(
+            action="ZOHO_CREATE_ZOHO_RECORD",
+            params={
+                "module_api_name": "Notes",
+                "data": {
+                    "Note_Title": title,
+                    "Note_Content": content,
+                    "se_module": module,
+                    "Parent_Id": record_id,
+                }
+            },
+            entity_id=entity_id,
+        )
         return True
     except Exception as e:
         print(f"  [crm_note] Error: {e}")

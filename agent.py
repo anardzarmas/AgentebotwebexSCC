@@ -253,12 +253,16 @@ Reglas: usa info real de notas CRM si existen. Stage Negotiate=cierre/ajustes, C
         # Extraer array JSON de la respuesta
         m = re.search(r'\[.*\]', text, re.DOTALL)
         raw = m.group() if m else text
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            # Limpiar escapes inválidos que algunos LLMs generan
-            cleaned = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
-            return json.loads(cleaned)
+        for attempt in (raw,
+                        re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw),          # fix escapes inválidos
+                        re.sub(r'[\x00-\x1f\x7f]', ' ', raw),                 # fix control chars
+                        re.sub(r'[\x00-\x1f\x7f]', ' ',
+                               re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw))): # ambos fixes
+            try:
+                return json.loads(attempt)
+            except json.JSONDecodeError:
+                continue
+        raise ValueError("No se pudo parsear el JSON del LLM")
 
     except Exception as e:
         print(f"  [LLM] Error: {e} — usando contenido genérico")
@@ -293,11 +297,11 @@ def create_crm_note(module: str, record_id: str, title: str, content: str, entit
     try:
         _composio("ZOHO_CREATE_ZOHO_RECORD", {
             "module_api_name": "Notes",
+            "record_id": record_id,          # top-level: Composio vincula la nota al registro
             "data": [{
                 "Note_Title": title,
                 "Note_Content": content,
                 "se_module": module,
-                "Parent_Id": {"id": int(record_id), "module": {"api_name": module}},
             }]
         }, entity_id)
         return True

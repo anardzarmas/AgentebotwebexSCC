@@ -290,7 +290,7 @@ def create_crm_note(module: str, record_id: str, title: str, content: str, entit
                 "Note_Title": title,
                 "Note_Content": content,
                 "se_module": module,
-                "Parent_Id": {"id": record_id, "module": module},
+                "Parent_Id": {"id": record_id, "module": {"api_name": module}},
             }]
         }, entity_id)
         return True

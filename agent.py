@@ -290,7 +290,7 @@ def create_crm_note(module: str, record_id: str, title: str, content: str, entit
                 "Note_Title": title,
                 "Note_Content": content,
                 "se_module": module,
-                "Parent_Id": {"id": record_id},   # Zoho requiere objeto, no string
+                "Parent_Id": {"id": record_id, "module": module},
             }]
         }, entity_id)
         return True

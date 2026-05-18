@@ -1,44 +1,30 @@
 """
-Asistente de Ventas BEST — Agente autónomo multi-AM
-Composio >= 0.13.0
+Asistente de Ventas BEST — arquitectura simplificada
+Python orquesta todo vía Composio HTTP. LLM solo genera texto de emails (1 llamada).
 
-Providers soportados (detección automática):
+Providers soportados:
   - Anthropic Claude  → si ANTHROPIC_API_KEY está en .env
-  - Ollama local      → si no hay ANTHROPIC_API_KEY (requiere ollama corriendo)
-
-Uso:
-  python agent.py --am arodriguez --herramienta H1
-  python agent.py --am arodriguez --herramienta H1,H2,H3
-  python agent.py --all --herramienta H1
+  - Groq (gratis)     → si GROQ_API_KEY está en .env
 """
 
-import os
-import sys
-import json
-import argparse
-import datetime
-import httpx
+import os, sys, json, re, argparse, datetime, httpx
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # ── Detectar provider ──────────────────────────────────────────────────────────
-# Prioridad: Anthropic → Groq → Ollama local
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 GROQ_KEY      = os.getenv("GROQ_API_KEY", "").strip()
 
 if ANTHROPIC_KEY:
     import anthropic
-    from composio import Composio
-    from composio_anthropic import AnthropicProvider
     PROVIDER = "anthropic"
-    MODEL    = "claude-haiku-4-5-20251001"   # ~6x más barato que Sonnet, suficiente para tool use
+    MODEL    = "claude-haiku-4-5-20251001"
     print("[Provider] Anthropic Claude Haiku")
 elif GROQ_KEY:
     from openai import OpenAI
-    from composio import Composio
-    from composio_openai import OpenAIProvider
     PROVIDER   = "groq"
     MODEL      = "llama-3.3-70b-versatile"
     OPENAI_URL = "https://api.groq.com/openai/v1"
@@ -46,65 +32,52 @@ elif GROQ_KEY:
     print(f"[Provider] Groq — {MODEL}")
 else:
     from openai import OpenAI
-    from composio import Composio
-    from composio_openai import OpenAIProvider
     PROVIDER   = "ollama"
-    MODEL      = "llama3.2"
+    MODEL      = "qwen2.5:7b"
     OPENAI_URL = "http://localhost:11434/v1"
     OPENAI_KEY = "ollama"
-    print("[Provider] Ollama local — llama3.2")
+    print("[Provider] Ollama local")
 
 # ── Rutas ──────────────────────────────────────────────────────────────────────
-ROOT       = Path(__file__).parent
-SKILLS_DIR = ROOT / "skills"
-CONFIG_DIR = ROOT / "config"
-MASTER_TPL = SKILLS_DIR / "HERRAMIENTAS-BEST-MASTER.md"
-SKILL_FILES = {
-    "H1": SKILLS_DIR / "herramienta-1-leads"        / "SKILL.md",
-    "H2": SKILLS_DIR / "herramienta-2-oportunidades" / "SKILL.md",
-    "H3": SKILLS_DIR / "herramienta-3-reporte"       / "SKILL.md",
-}
-MAX_TOKENS = 8192   # espacio suficiente para múltiples tool_use blocks en paralelo
-MAX_ITER   = 25     # tope de seguridad para el agentic loop
+ROOT         = Path(__file__).parent
+CONFIG_DIR   = ROOT / "config"
+COMPOSIO_KEY = os.environ["COMPOSIO_API_KEY"]
 
-_composio = None
+# ── Composio HTTP directo (sin SDK, sin LLM) ───────────────────────────────────
+def _composio(slug: str, arguments: dict, entity_id: str) -> dict:
+    """Llama a Composio directamente via HTTP. Sin pasar por el LLM."""
+    url     = f"https://backend.composio.dev/api/v3.1/tools/execute/{slug}"
+    headers = {"x-api-key": COMPOSIO_KEY, "Content-Type": "application/json"}
+    payload = {"arguments": arguments, "entity_id": entity_id}
+    with httpx.Client(timeout=45) as client:
+        resp = client.post(url, json=payload, headers=headers)
+    if resp.status_code != 200:
+        raise RuntimeError(f"{slug} HTTP {resp.status_code}: {resp.text[:300]}")
+    data = resp.json()
+    if not data.get("successful", True):
+        raise RuntimeError(f"{slug} falló: {str(data)[:300]}")
+    return data
 
-def get_composio():
-    global _composio
-    if _composio is None:
-        provider  = AnthropicProvider() if PROVIDER == "anthropic" else OpenAIProvider()
-        _composio = Composio(provider=provider)
-    return _composio
-
-
-# Slugs por herramienta — solo se cargan los necesarios para ahorrar tokens
-TOOL_SLUGS = {
-    "H1": ["ZOHO_GET_ZOHO_RECORDS", "ZOHO_GET_RELATED_RECORDS",
-           "ZOHO_CREATE_ZOHO_RECORD", "OUTLOOK_CREATE_DRAFT"],
-    "H2": ["ZOHO_GET_ZOHO_RECORDS", "ZOHO_GET_RELATED_RECORDS",
-           "ZOHO_CREATE_ZOHO_RECORD", "OUTLOOK_CREATE_DRAFT"],
-    "H3": ["ZOHO_GET_ZOHO_RECORDS", "ZOHO_GET_RELATED_RECORDS",
-           "ZOHO_SEARCH_ZOHO_RECORDS"],
-}
-
+def _extract_records(data: dict) -> list:
+    """Extrae lista de registros del JSON de Composio (estructura data.data o data)."""
+    inner = data.get("data", {})
+    if isinstance(inner, dict):
+        recs = inner.get("data")
+        if isinstance(recs, list):
+            return recs
+    if isinstance(inner, list):
+        return inner
+    return []
 
 # ── Config AM ──────────────────────────────────────────────────────────────────
 def load_am_config(am_id: str) -> dict:
     path = CONFIG_DIR / f"{am_id}.json"
     if not path.exists():
         sys.exit(f"[ERROR] No existe config para '{am_id}'. Crea config/{am_id}.json")
-    cfg = json.loads(path.read_text(encoding="utf-8"))
-    required = ["email","name","title","company","zoho_org_id",
-                "zoho_view_leads","zoho_view_potentials","composio_entity_id"]
-    missing = [k for k in required if not cfg.get(k)]
-    if missing:
-        sys.exit(f"[ERROR] Faltan campos en config/{am_id}.json: {missing}")
-    return cfg
+    return json.loads(path.read_text(encoding="utf-8"))
 
-
-def list_all_ams() -> list[str]:
+def list_all_ams() -> list:
     return [p.stem for p in CONFIG_DIR.glob("*.json") if p.stem != "am_example"]
-
 
 def find_am_by_email(email: str) -> dict | None:
     for path in CONFIG_DIR.glob("*.json"):
@@ -115,408 +88,305 @@ def find_am_by_email(email: str) -> dict | None:
             return cfg
     return None
 
-
-# ── Skill builder ──────────────────────────────────────────────────────────────
-def build_system_prompt(herramienta: str, cfg: dict) -> str:
-    master   = MASTER_TPL.read_text(encoding="utf-8")
-    skill    = SKILL_FILES[herramienta].read_text(encoding="utf-8")
-    combined = f"{master}\n\n---\n\n{skill}"
-    for key, value in cfg.items():
-        combined = combined.replace(f"{{{{{key}}}}}", str(value))
-    return combined
-
-
-# ── Loops por provider ─────────────────────────────────────────────────────────
-def _apply_cache_control(tools: list) -> list:
-    """Marca el último tool con cache_control para que Anthropic cachee todo el bloque."""
-    import copy
-    tools = copy.deepcopy(tools)
-    if tools:
-        tools[-1]["cache_control"] = {"type": "ephemeral"}
-    return tools
-
-
-def _run_anthropic(herramienta: str, cfg: dict, system_prompt: str,
-                   user_prompt: str, composio, tools) -> str:
-    import time, re
-    from anthropic import RateLimitError
-
-    client   = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    user_id  = cfg["composio_entity_id"]
-    messages = [{"role": "user", "content": user_prompt}]
-    iters    = 0
-
-    # Cachear system prompt y tools entre iteraciones (90% descuento en lecturas)
-    cached_system = [
-        {"type": "text", "text": system_prompt,
-         "cache_control": {"type": "ephemeral"}}
-    ]
-    cached_tools = _apply_cache_control(tools)
-
-    while iters < MAX_ITER:
-        iters += 1
-        try:
-            response = client.messages.create(
-                model=MODEL, max_tokens=MAX_TOKENS,
-                system=cached_system, tools=cached_tools, messages=messages,
-            )
-        except RateLimitError as e:
-            msg = str(e)
-            # Intentar extraer tiempo de espera del mensaje de error
-            m = re.search(r"try again in (\d+)m(\d+(?:\.\d+)?)", msg)
-            if m:
-                wait = int(m.group(1)) * 60 + float(m.group(2)) + 5
-            else:
-                m2 = re.search(r"try again in (\d+(?:\.\d+)?)s", msg)
-                wait = float(m2.group(1)) + 5 if m2 else 65
-            print(f"[Rate limit Anthropic] Esperando {int(wait)}s antes de reintentar... (iter {iters})")
-            time.sleep(wait)
-            iters -= 1  # no contar el intento fallido
-            continue
-
-        if response.stop_reason == "tool_use":
-            tool_blocks = [b for b in response.content if b.type == "tool_use"]
-            # Forzar criteria y per_page en ZOHO_GET_ZOHO_RECORDS antes de ejecutar
-            for block in tool_blocks:
-                if block.name == "ZOHO_GET_ZOHO_RECORDS":
-                    module = block.input.get("module_api_name", "")
-                    if module in ("Leads", "Potentials"):
-                        block.input.pop("cvid", None)          # cvid conflicta con criteria
-                        block.input.pop("page_token", None)    # evitar paginación infinita
-                        block.input["criteria"] = f"(Owner.email:equals:{cfg['email']})"
-                        block.input["per_page"]  = 50
-                        block.input["page"]      = 1           # siempre página 1 con criteria
-                        print(f"  [force-filter] criteria inyectado → {module} owner={cfg['email']}")
-            results     = composio.provider.handle_tool_calls(user_id=user_id, response=response)
-            n_tools     = len(tool_blocks)
-            print(f"  [iter {iters}] {n_tools} tool call(s): {[b.name for b in tool_blocks]}")
-            # Filtrar por owner ANTES de que Claude vea los resultados
-            filtered_results = []
-            for i, r in enumerate(results):
-                text = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
-                if tool_blocks[i].name == "ZOHO_GET_ZOHO_RECORDS":
-                    # LOG: qué argumentos mandó Claude a Zoho
-                    print(f"  [DEBUG] args enviados a Zoho: {json.dumps(tool_blocks[i].input, ensure_ascii=False)}")
-                    # LOG: qué viene exactamente en la respuesta de Zoho
-                    try:
-                        raw     = json.loads(text)
-                        records = _extract_zoho_records(raw) or []
-                        print(f"  [DEBUG] registros en respuesta: {len(records)}")
-                        for rec in records[:5]:
-                            owner = rec.get("Owner", {})
-                            email = owner.get("email", "N/A") if isinstance(owner, dict) else str(owner)
-                            print(f"  [DEBUG] lead: {rec.get('Last_Name','?')} | owner: {email}")
-                    except Exception as e:
-                        print(f"  [DEBUG] ERROR: {e} | raw: {str(text)[:300]}")
-                    text = _filter_by_owner(text, cfg["email"])
-                filtered_results.append(_truncate_result(text))
-            messages.append({"role": "assistant", "content": response.content})
-            messages.append({
-                "role": "user",
-                "content": [
-                    {"type": "tool_result", "tool_use_id": tool_blocks[i].id,
-                     "content": filtered_results[i]}
-                    for i in range(len(tool_blocks))
-                ],
-            })
-            continue
-
-        print(f"  [iter {iters}] stop_reason={response.stop_reason}")
-        return next((b.text for b in response.content if hasattr(b, "text")), "")
-
-    return f"[ERROR] Se alcanzó el límite de {MAX_ITER} iteraciones sin completar {herramienta}."
-
-
-def _extract_zoho_records(parsed: dict) -> list | None:
-    """Extrae la lista de registros del JSON de Composio (estructura data.data o data)."""
-    # Composio envuelve: {"data": {"data": [...], ...}, "successful": ...}
-    inner = parsed.get("data", {})
-    if isinstance(inner, dict):
-        records = inner.get("data")
-        if isinstance(records, list):
-            return records
-    if isinstance(inner, list):
-        return inner
-    return None
-
-
-def _filter_by_owner(result_text: str, owner_email: str) -> str:
-    """Filtra resultados de Zoho para incluir SOLO registros del AM correcto.
-    Se aplica en Python antes de que Claude vea los datos."""
-    try:
-        parsed = json.loads(result_text)
-        records = _extract_zoho_records(parsed)
-        if records is None:
-            return result_text
-        before   = len(records)
-        filtered = [
-            r for r in records
-            if isinstance(r.get("Owner"), dict)
-            and r["Owner"].get("email", "").lower() == owner_email.lower()
-        ]
-        removed = before - len(filtered)
-        if removed > 0:
-            print(f"  [owner-filter] Removidos {removed} registros de otros AMs "
-                  f"(quedan {len(filtered)} de {owner_email})")
-        # Reconstruir con la misma estructura
-        parsed["data"]["data"] = filtered
-        return json.dumps(parsed, ensure_ascii=False)
-    except Exception:
-        pass
-    return result_text
-
-
-def _truncate_result(result, max_chars: int = 1500) -> str:
-    """Recorta respuestas grandes de herramientas para no inflar el historial."""
-    text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
-    if len(text) > max_chars:
-        return text[:max_chars] + "\n...[resultado truncado para ahorrar tokens]"
-    return text
-
-
-_PROP_BLOAT = {"title", "examples", "human_parameter_name",
-               "human_parameter_description", "file_uploadable",
-               "description", "default", "enum"}   # para Groq: eliminar desc y enum para ahorrar tokens
-
-def _slim_prop(prop: dict) -> dict:
-    """Elimina campos de UI y descripciones — el LLM ya sabe qué hacer por el SKILL.md."""
-    # Solo conservar type + estructura, sin descripciones ni bloat
-    p = {}
-    t = prop.get("type")
-    if t:
-        # Permitir integer o string: los LLMs open-source suelen devolver strings
-        p["type"] = ["integer", "string"] if t == "integer" else t
-    # Procesar anyOf / oneOf recursivamente (solo tipos)
-    for key in ("anyOf", "oneOf"):
-        if key in prop:
-            p[key] = [_slim_prop(x) if isinstance(x, dict) else x for x in prop[key]]
-    if "items" in prop and isinstance(prop["items"], dict):
-        p["items"] = _slim_prop(prop["items"])
-    if "properties" in prop and isinstance(prop["properties"], dict):
-        p["properties"] = {k: _slim_prop(v) for k, v in prop["properties"].items()}
-    return p
-
-
-def _clean_tools(tools: list) -> list:
-    """Limpia tools para Groq/Ollama: elimina strict, descripciones y reduce tokens al mínimo."""
-    import copy
-    cleaned = []
-    for tool in copy.deepcopy(tools):
-        if not isinstance(tool, dict) or "function" not in tool:
-            continue
-        fn = tool["function"]
-        fn.pop("strict", None)
-        # Descripción del tool: solo primeras 60 chars (ya describimos en SKILL.md)
-        if isinstance(fn.get("description"), str):
-            fn["description"] = fn["description"][:60]
-        params = fn.get("parameters", {})
-        props = params.get("properties", {})
-        params["properties"] = {k: _slim_prop(v) for k, v in props.items()}
-        # Mantener solo type, properties y required
-        for key in list(params.keys()):
-            if key not in ("type", "properties", "required"):
-                del params[key]
-        cleaned.append(tool)
-    return cleaned
-
-
-def _run_ollama(herramienta: str, cfg: dict, system_prompt: str,
-                user_prompt: str, composio, tools) -> str:
-    import time, re
-    from openai import RateLimitError
-    client  = OpenAI(base_url=OPENAI_URL, api_key=OPENAI_KEY)
-    tools   = _clean_tools(tools)
-    user_id = cfg["composio_entity_id"]
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user",   "content": user_prompt},
-    ]
-    iters = 0
-
-    while iters < MAX_ITER:
-        iters += 1
-        # Reintento automático si hay rate-limit con tiempo de espera en el mensaje
-        try:
-            response = client.chat.completions.create(
-                model=MODEL, tools=tools, messages=messages,
-            )
-        except RateLimitError as e:
-            msg = str(e)
-            # Extraer segundos de "Please try again in Xm Ys"
-            m = re.search(r"try again in (\d+)m(\d+(?:\.\d+)?)", msg)
-            if m:
-                wait = int(m.group(1)) * 60 + float(m.group(2)) + 5
-            else:
-                m2 = re.search(r"try again in (\d+(?:\.\d+)?)s", msg)
-                wait = float(m2.group(1)) + 5 if m2 else 65
-            print(f"[Rate limit] Esperando {int(wait)}s antes de reintentar...")
-            time.sleep(wait)
-            iters -= 1  # no contar el intento fallido
-            continue
-
-        choice = response.choices[0]
-
-        if choice.finish_reason == "tool_calls":
-            results = composio.provider.handle_tool_calls(user_id=user_id, response=response)
-            n_tools = len(choice.message.tool_calls)
-            print(f"  [iter {iters}] {n_tools} tool call(s): {[tc.function.name for tc in choice.message.tool_calls]}")
-            # Groq requiere content como string y tool_calls separado
-            messages.append({
-                "role": "assistant",
-                "content": choice.message.content or "",
-                "tool_calls": [tc.model_dump() for tc in choice.message.tool_calls],
-            })
-            for i, tool_call in enumerate(choice.message.tool_calls):
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": _truncate_result(results[i] if i < len(results) else {}),
-                })
-            continue
-
-        print(f"  [iter {iters}] finish_reason={choice.finish_reason}")
-        return choice.message.content or ""
-
-    return f"[ERROR] Se alcanzó el límite de {MAX_ITER} iteraciones sin completar {herramienta}."
-
-
-# ── Pre-fetch directo de Zoho (sin Claude) ────────────────────────────────────
+# ── PASO 1: Fetch leads / oportunidades del AM ─────────────────────────────────
 _FIELDS = {
     "H1": "id,First_Name,Last_Name,Company,Email,Lead_Status,Phone,Owner",
     "H2": "id,Deal_Name,Stage,Amount,Closing_Date,Account_Name,Contact_Name,Owner",
 }
-_MODULES = {"H1": "Leads", "H2": "Potentials"}
+_MODULES    = {"H1": "Leads", "H2": "Potentials"}
+EXCLUDE_H1  = {"Sin interes", "Descartado", "Lead desechado"}
+INCLUDE_H2  = {"Negotiate", "Comprar", "Entregar"}
 
-
-def _prefetch_am_records(herramienta: str, cfg: dict) -> list:
-    """
-    Obtiene los registros del AM directamente desde Composio (HTTP),
-    paginando hasta encontrar todos. Filtra por Owner.email en Python.
-    Evita que Claude tenga que paginar y elimina alucinaciones.
-    """
+def fetch_records(herramienta: str, cfg: dict) -> list:
     module      = _MODULES[herramienta]
-    fields      = _FIELDS[herramienta]
     owner_email = cfg["email"]
     entity_id   = cfg["composio_entity_id"]
-    api_key     = os.environ["COMPOSIO_API_KEY"]
-
-    url     = "https://backend.composio.dev/api/v3.1/tools/execute/ZOHO_GET_ZOHO_RECORDS"
-    headers = {"x-api-key": api_key, "Content-Type": "application/json"}
 
     all_records = []
     page = 1
+    while page <= 5:                        # máx 5 páginas × 200 = 1 000 registros org
+        data    = _composio("ZOHO_GET_ZOHO_RECORDS", {
+            "module_api_name": module,
+            "fields": _FIELDS[herramienta],
+            "per_page": 200,
+            "page": page,
+        }, entity_id)
+        records = _extract_records(data)
 
-    with httpx.Client(timeout=30) as client:
-        while page <= 5:                           # tope: 5 páginas × 200 = 1 000 registros
-            payload = {
-                "arguments": {
-                    "module_api_name": module,
-                    "fields": fields,
-                    "per_page": 200,
-                    "page": page,
-                },
-                "entity_id": entity_id,
-            }
-            try:
-                resp = client.post(url, json=payload, headers=headers)
-                print(f"  [prefetch] HTTP {resp.status_code} p{page}")
-                if resp.status_code != 200:
-                    print(f"  [prefetch] Error body: {resp.text[:300]}")
-                    break
-                data = resp.json()
-                print(f"  [prefetch] keys: {list(data.keys())[:5]}")
-            except Exception as e:
-                print(f"  [prefetch] Excepción p{page}: {e}")
-                break
-
-            records = _extract_zoho_records(data) or []
-            filtered = [
-                r for r in records
+        mine = [r for r in records
                 if isinstance(r.get("Owner"), dict)
-                and r["Owner"].get("email", "").lower() == owner_email.lower()
-            ]
-            all_records.extend(filtered)
+                and r["Owner"].get("email","").lower() == owner_email.lower()]
+        all_records.extend(mine)
 
-            info = {}
-            try:
-                info = data["data"]["info"]
-            except (KeyError, TypeError):
-                pass
-            more = info.get("more_records", False) if isinstance(info, dict) else False
-            print(f"  [prefetch] p{page}: {len(records)} registros org, "
-                  f"{len(filtered)} de {owner_email}, more={more}")
+        try:
+            more = data["data"]["info"].get("more_records", False)
+        except (KeyError, TypeError):
+            more = False
 
-            if not more or len(records) == 0:
-                break
-            page += 1
+        print(f"  [fetch] p{page}: {len(records)} org, {len(mine)} propios, more={more}")
+        if not more or len(records) == 0:
+            break
+        page += 1
 
-    print(f"  [prefetch] Total {herramienta}: {len(all_records)} registros de {owner_email}")
-    return all_records
+    # Filtrar por status / stage
+    if herramienta == "H1":
+        active = [r for r in all_records if r.get("Lead_Status","") not in EXCLUDE_H1]
+    else:
+        active = [r for r in all_records if r.get("Stage","") in INCLUDE_H2]
 
+    print(f"  [fetch] {len(all_records)} totales → {len(active)} activos")
+    return active
+
+# ── PASO 2: Fetch notas CRM de cada registro ───────────────────────────────────
+def fetch_notes(record_id: str, module: str, entity_id: str) -> list:
+    try:
+        data = _composio("ZOHO_GET_RELATED_RECORDS", {
+            "module_api_name": module,
+            "record_id": record_id,
+            "related_list_api_name": "Notes",
+            "fields": "id,Note_Title,Note_Content,Created_Time",
+            "per_page": 2,
+            "sort_by": "Created_Time",
+            "sort_order": "desc",
+        }, entity_id)
+        return _extract_records(data)
+    except Exception as e:
+        print(f"  [notes] {record_id}: {e}")
+        return []
+
+# ── PASO 2b: Fetch emails de contactos (solo H2) ───────────────────────────────
+def fetch_contact_emails(contact_ids: list, entity_id: str) -> dict:
+    if not contact_ids:
+        return {}
+    try:
+        data    = _composio("ZOHO_GET_ZOHO_RECORDS", {
+            "module_api_name": "Contacts",
+            "ids": list(set(contact_ids)),
+            "fields": "id,Full_Name,Email",
+        }, entity_id)
+        records = _extract_records(data)
+        return {r["id"]: r.get("Email","") for r in records if r.get("id")}
+    except Exception as e:
+        print(f"  [contacts] {e}")
+        return {}
+
+# ── PASO 3: UNA sola llamada al LLM para generar texto ─────────────────────────
+def generate_content(herramienta: str, cfg: dict, records: list, fecha: str) -> list:
+    """Genera asuntos, cuerpos de email y notas CRM para todos los registros de una vez."""
+
+    tipo  = "Lead" if herramienta == "H1" else "Oportunidad"
+    firma = f"{cfg['name']} / {cfg['title']} - {cfg['company']} / {cfg['email']}"
+
+    # Construir descripción compacta de cada registro
+    items_text = ""
+    for r in records:
+        if herramienta == "H1":
+            items_text += (
+                f"\nID:{r['id']} | {r.get('First_Name','')} {r.get('Last_Name','')} | "
+                f"{r.get('Company','')} | {r.get('Email','')} | Status:{r.get('Lead_Status','')}\n"
+            )
+        else:
+            items_text += (
+                f"\nID:{r['id']} | {r.get('Deal_Name','')} | {r.get('Account_Name','')} | "
+                f"Stage:{r.get('Stage','')} | ${r.get('Amount','')} | "
+                f"Cierre:{r.get('Closing_Date','')} | Email:{r.get('contact_email','')}\n"
+            )
+        notes = r.get("notes", [])
+        if notes:
+            for n in notes[:2]:
+                titulo   = n.get("Note_Title","")
+                contenido = str(n.get("Note_Content",""))[:200]
+                fecha_n   = str(n.get("Created_Time",""))[:10]
+                items_text += f"  Nota [{fecha_n}] {titulo}: {contenido}\n"
+        else:
+            items_text += "  Sin notas CRM previas\n"
+
+    system_prompt = (
+        f"Eres asistente de ventas de {cfg['name']}, {cfg['title']} en {cfg['company']}.\n"
+        f"Fecha: {fecha}. Firma: {firma}\n"
+        f"Responde SOLO con JSON válido (array), sin markdown ni texto adicional."
+    )
+
+    user_prompt = f"""Genera email de seguimiento y nota CRM para cada {tipo}.
+
+{items_text}
+
+Devuelve este array JSON exacto (un objeto por {tipo}):
+[
+  {{
+    "id": "ID_EXACTO",
+    "subject": "Asunto del email (conciso, referencia contexto real)",
+    "body": "Cuerpo del email: 3 párrafos (contexto CRM + acción según status/stage + siguiente paso). Firma al final: {firma}",
+    "crm_note": "Texto breve: qué se preparó y por qué"
+  }}
+]
+
+Reglas: usa info real de notas CRM si existen. Stage Negotiate=cierre/ajustes, Comprar=orden/facturación, Entregar=coordinación. Español profesional."""
+
+    print(f"  [LLM] Generando contenido para {len(records)} registros...")
+
+    try:
+        if PROVIDER == "anthropic":
+            client   = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+            response = client.messages.create(
+                model=MODEL, max_tokens=4000,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            text = response.content[0].text
+
+        else:  # groq / ollama
+            client   = OpenAI(base_url=OPENAI_URL, api_key=OPENAI_KEY)
+            response = client.chat.completions.create(
+                model=MODEL, max_tokens=4000,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_prompt},
+                ]
+            )
+            text = response.choices[0].message.content or ""
+
+        # Extraer array JSON de la respuesta
+        m = re.search(r'\[.*\]', text, re.DOTALL)
+        if m:
+            return json.loads(m.group())
+        return json.loads(text)
+
+    except Exception as e:
+        print(f"  [LLM] Error: {e} — usando contenido genérico")
+        return [
+            {
+                "id": r["id"],
+                "subject": f"Seguimiento - {r.get('Company', r.get('Account_Name',''))}",
+                "body": f"Estimado/a,\n\nEspero que se encuentre bien. Me pongo en contacto para dar seguimiento.\n\nQuedo a su disposición.\n\n{firma}",
+                "crm_note": f"Seguimiento preparado - {fecha}",
+            }
+            for r in records
+        ]
+
+# ── PASO 4: Crear borradores en Outlook ───────────────────────────────────────
+def create_draft(to_email: str, subject: str, body: str, entity_id: str) -> bool:
+    try:
+        _composio("OUTLOOK_CREATE_DRAFT", {
+            "to_recipients": [to_email],
+            "subject": subject,
+            "body": body,
+        }, entity_id)
+        return True
+    except Exception as e:
+        print(f"  [draft] Error: {e}")
+        return False
+
+# ── PASO 5: Crear notas CRM en Zoho ───────────────────────────────────────────
+def create_crm_note(module: str, record_id: str, title: str, content: str, entity_id: str) -> bool:
+    try:
+        _composio("ZOHO_CREATE_ZOHO_RECORD", {
+            "module_api_name": "Notes",
+            "data": {
+                "Note_Title": title,
+                "Note_Content": content,
+                "se_module": module,
+                "Parent_Id": record_id,
+            }
+        }, entity_id)
+        return True
+    except Exception as e:
+        print(f"  [crm_note] Error: {e}")
+        return False
 
 # ── Runner principal ───────────────────────────────────────────────────────────
 def run_herramienta(herramienta: str, cfg: dict) -> str:
-    composio = get_composio()
-    user_id  = cfg["composio_entity_id"]
-    # Solo las herramientas necesarias para esta herramienta (ahorra tokens)
-    tools = composio.tools.get(user_id=user_id, tools=TOOL_SLUGS[herramienta])
+    if herramienta not in ("H1", "H2"):
+        return f"[ERROR] Herramienta {herramienta} no soportada en esta versión."
 
-    fecha         = datetime.date.today().strftime("%Y-%m-%d")
-    system_prompt = build_system_prompt(herramienta, cfg)
+    fecha     = datetime.date.today().strftime("%Y-%m-%d")
+    entity_id = cfg["composio_entity_id"]
+    module    = _MODULES[herramienta]
+    h_num     = "1" if herramienta == "H1" else "2"
 
-    # Pre-fetch registros del AM directamente desde Zoho (sin Claude)
-    records_inject = ""
-    if herramienta in ("H1", "H2"):
-        am_records = _prefetch_am_records(herramienta, cfg)
-        if am_records:
-            module_name = "Leads" if herramienta == "H1" else "Potentials"
-            # Serializar en formato compacto para minimizar tokens
-            if herramienta == "H1":
-                lines = []
-                for r in am_records:
-                    name = f"{r.get('First_Name','')} {r.get('Last_Name','')}".strip()
-                    lines.append(f"ID:{r.get('id')}|{name}|{r.get('Company','')}|{r.get('Email','')}|{r.get('Lead_Status','')}")
-                records_text = "\n".join(lines)
-            else:
-                lines = []
-                for r in am_records:
-                    cn = r.get("Contact_Name") or {}
-                    cn_id = cn.get("id","") if isinstance(cn, dict) else ""
-                    lines.append(f"ID:{r.get('id')}|{r.get('Deal_Name','')}|{r.get('Stage','')}|${r.get('Amount','')}|{r.get('Closing_Date','')}|Acct:{r.get('Account_Name','')}|ContactID:{cn_id}")
-                records_text = "\n".join(lines)
-            records_inject = (
-                f"\n\nREGISTROS PRE-CARGADOS de {module_name} ({len(am_records)} registros de {cfg['email']}):\n"
-                f"NO llames ZOHO_GET_ZOHO_RECORDS para {module_name}. SÍ para Contacts.\n"
-                f"Formato: ID|Nombre|Empresa|Email|Status\n"
-                + records_text
-            )
-            # NOTA: NO eliminar ZOHO_GET_ZOHO_RECORDS — H2 la necesita para buscar Contacts
+    print(f"\n[{fecha}] {herramienta} → {cfg['name']} ({cfg['email']})")
+
+    # PASO 1: Obtener registros activos del AM
+    active = fetch_records(herramienta, cfg)
+    if not active:
+        return f"{herramienta} [{fecha}] · procesados:0 · sin registros activos para {cfg['email']}"
+
+    # PASO 2: Notas CRM en paralelo (ahorra tiempo)
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        futures = {ex.submit(fetch_notes, r["id"], module, entity_id): r for r in active}
+        for future in as_completed(futures):
+            futures[future]["notes"] = future.result()
+
+    # PASO 2b: Emails de contactos para H2
+    if herramienta == "H2":
+        contact_ids = [
+            r["Contact_Name"]["id"]
+            for r in active
+            if isinstance(r.get("Contact_Name"), dict) and r["Contact_Name"].get("id")
+        ]
+        email_map = fetch_contact_emails(contact_ids, entity_id)
+        for r in active:
+            cn = r.get("Contact_Name")
+            r["contact_email"] = email_map.get(cn.get("id","") if isinstance(cn, dict) else "", "")
+
+    # PASO 3: UNA llamada al LLM para generar todo el contenido
+    content_list = generate_content(herramienta, cfg, active, fecha)
+    content_map  = {c["id"]: c for c in content_list}
+
+    # PASO 4 + 5: Crear borradores y notas CRM
+    borradores = notas = sin_email = errores = 0
+    output_lines = []
+
+    for r in active:
+        rid     = r["id"]
+        content = content_map.get(rid, {})
+
+        if herramienta == "H1":
+            name    = f"{r.get('First_Name','')} {r.get('Last_Name','')}".strip()
+            company = r.get("Company","")
+            status  = r.get("Lead_Status","")
+            email   = r.get("Email","")
         else:
-            records_inject = f"\n\nNo se encontraron registros activos para {cfg['email']}."
+            name    = r.get("Deal_Name","")
+            company = r.get("Account_Name","")
+            status  = r.get("Stage","")
+            email   = r.get("contact_email","")
 
-    user_prompt = (
-        f"Ejecuta {herramienta} para {cfg['email']}. Fecha de hoy: {fecha}.\n"
-        f"Los registros ya están pre-cargados — salta la FASE 1 y empieza desde FASE 2.\n"
-        f"En cada fase llama TODAS las herramientas necesarias en UNA SOLA respuesta.\n"
-        f"No esperes confirmación entre registros. Al terminar muestra el reporte de salida."
-        + records_inject
+        subject  = content.get("subject", f"Seguimiento - {company}")
+        body     = content.get("body","")
+        crm_text = content.get("crm_note", f"Seguimiento preparado - {fecha}")
+
+        # Borrador Outlook
+        if email:
+            if create_draft(email, subject, body, entity_id):
+                borradores += 1
+            else:
+                errores += 1
+        else:
+            sin_email += 1
+
+        # Nota CRM
+        note_title = f"Seguimiento preparado - {fecha} (Herramienta {h_num})"
+        if create_crm_note(module, rid, note_title, crm_text, entity_id):
+            notas += 1
+        else:
+            errores += 1
+
+        output_lines.append(
+            f"• {name} — {company} — {status}\n"
+            f"  📧 Borrador: \"{subject}\"\n"
+            f"  📝 Nota CRM: \"{crm_text[:100]}\""
+        )
+
+    summary = (
+        f"{herramienta} [{fecha}] · procesados:{len(active)} · "
+        f"borradores:{borradores} · notas:{notas} · "
+        f"sin_email:{sin_email} · errores:{errores}"
     )
-
-    print(f"\n[{fecha}] {herramienta} -> {cfg['name']} ({cfg['email']})")
-
-    if PROVIDER == "anthropic":
-        final_text = _run_anthropic(herramienta, cfg, system_prompt, user_prompt, composio, tools)
-    else:
-        final_text = _run_ollama(herramienta, cfg, system_prompt, user_prompt, composio, tools)
-
-    print(final_text)
-
-    if herramienta == "H3":
-        report_path = ROOT / f"Reporte_Herramientas_{user_id}_{fecha}.md"
-        report_path.write_text(final_text, encoding="utf-8")
-        print(f"Reporte guardado: {report_path}")
-
-    return final_text
+    detail = "\n\n".join(output_lines)
+    result = f"{summary}\n\nRegistros procesados:\n{detail}"
+    print(result)
+    return result
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
@@ -526,20 +396,15 @@ def main():
     group.add_argument("--am",  help="ID del AM (nombre del JSON en config/)")
     group.add_argument("--all", action="store_true", help="Todos los AMs")
     parser.add_argument("--herramienta", default="H1",
-                        help="H1, H2, H3 o combinaciones como H1,H2")
+                        help="H1, H2 o combinaciones como H1,H2")
     args = parser.parse_args()
 
     herramientas = [h.strip().upper() for h in args.herramienta.split(",")]
-    invalid = [h for h in herramientas if h not in SKILL_FILES]
-    if invalid:
-        sys.exit(f"[ERROR] Herramientas no reconocidas: {invalid}")
-
     ams = list_all_ams() if args.all else [args.am]
     for am_id in ams:
         cfg = load_am_config(am_id)
         for h in herramientas:
             run_herramienta(h, cfg)
-
 
 if __name__ == "__main__":
     main()

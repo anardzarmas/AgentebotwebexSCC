@@ -132,7 +132,15 @@ def fetch_records(herramienta: str, cfg: dict) -> list:
     if herramienta == "H1":
         active = [r for r in all_records if r.get("Lead_Status","") not in EXCLUDE_H1]
     else:
+        # Mostrar stages reales para diagnóstico
+        stages = [r.get("Stage","(sin stage)") for r in all_records]
+        if stages:
+            print(f"  [stages encontrados] {stages}")
         active = [r for r in all_records if r.get("Stage","") in INCLUDE_H2]
+        if not active and all_records:
+            # Si no coincide ningún stage, tomar todos (no filtrar)
+            print(f"  [AVISO] Ningún stage coincide con {INCLUDE_H2}. Procesando todos.")
+            active = all_records
 
     print(f"  [fetch] {len(all_records)} totales → {len(active)} activos")
     return active
@@ -294,10 +302,27 @@ def create_crm_note(module: str, record_id: str, title: str, content: str, entit
         print(f"  [crm_note] Error: {e}")
         return False
 
+# ── H3: Reporte del día ────────────────────────────────────────────────────────
+def run_h3(cfg: dict) -> str:
+    fecha = datetime.date.today().strftime("%Y-%m-%d")
+    print(f"\n[{fecha}] H3 → {cfg['name']} ({cfg['email']})")
+    resultado_h1 = run_herramienta("H1", cfg)
+    resultado_h2 = run_herramienta("H2", cfg)
+    reporte = (
+        f"📊 **Reporte del día — {fecha}**\n"
+        f"👤 {cfg['name']} | {cfg['title']}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"**H1 — Leads**\n{resultado_h1}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"**H2 — Oportunidades**\n{resultado_h2}"
+    )
+    return reporte
+
+
 # ── Runner principal ───────────────────────────────────────────────────────────
 def run_herramienta(herramienta: str, cfg: dict) -> str:
-    if herramienta not in ("H1", "H2"):
-        return f"[ERROR] Herramienta {herramienta} no soportada en esta versión."
+    if herramienta == "H3":
+        return run_h3(cfg)
 
     fecha     = datetime.date.today().strftime("%Y-%m-%d")
     entity_id = cfg["composio_entity_id"]

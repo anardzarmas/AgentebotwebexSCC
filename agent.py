@@ -95,7 +95,7 @@ _FIELDS = {
 }
 _MODULES    = {"H1": "Leads", "H2": "Potentials"}
 EXCLUDE_H1  = {"Sin interes", "Descartado", "Lead desechado"}
-INCLUDE_H2  = {"Negotiate", "Comprar", "Entregar"}
+EXCLUDE_H2  = {"Closed Lost", "Terminado", "Closed Won", "Perdido"}  # excluir cerrados
 
 def fetch_records(herramienta: str, cfg: dict) -> list:
     module      = _MODULES[herramienta]
@@ -132,15 +132,10 @@ def fetch_records(herramienta: str, cfg: dict) -> list:
     if herramienta == "H1":
         active = [r for r in all_records if r.get("Lead_Status","") not in EXCLUDE_H1]
     else:
-        # Mostrar stages reales para diagnóstico
         stages = [r.get("Stage","(sin stage)") for r in all_records]
         if stages:
             print(f"  [stages encontrados] {stages}")
-        active = [r for r in all_records if r.get("Stage","") in INCLUDE_H2]
-        if not active and all_records:
-            # Si no coincide ningún stage, tomar todos (no filtrar)
-            print(f"  [AVISO] Ningún stage coincide con {INCLUDE_H2}. Procesando todos.")
-            active = all_records
+        active = [r for r in all_records if r.get("Stage","") not in EXCLUDE_H2]
 
     print(f"  [fetch] {len(all_records)} totales → {len(active)} activos")
     return active
@@ -167,9 +162,10 @@ def fetch_contact_emails(contact_ids: list, entity_id: str) -> dict:
     if not contact_ids:
         return {}
     try:
+        unique_ids = ",".join(list(set(contact_ids)))   # Composio requiere string CSV
         data    = _composio("ZOHO_GET_ZOHO_RECORDS", {
             "module_api_name": "Contacts",
-            "ids": list(set(contact_ids)),
+            "ids": unique_ids,
             "fields": "id,Full_Name,Email",
         }, entity_id)
         records = _extract_records(data)
@@ -195,7 +191,7 @@ def generate_content(herramienta: str, cfg: dict, records: list, fecha: str) -> 
             )
         else:
             items_text += (
-                f"\nID:{r['id']} | {r.get('Deal_Name','')} | {r.get('Account_Name','')} | "
+                f"\nID:{r['id']} | {r.get('Deal_Name','')} | {r.get('Account_Name',{}).get('name','') if isinstance(r.get('Account_Name'), dict) else r.get('Account_Name','')} | "
                 f"Stage:{r.get('Stage','')} | ${r.get('Amount','')} | "
                 f"Cierre:{r.get('Closing_Date','')} | Email:{r.get('contact_email','')}\n"
             )
@@ -290,12 +286,12 @@ def create_crm_note(module: str, record_id: str, title: str, content: str, entit
     try:
         _composio("ZOHO_CREATE_ZOHO_RECORD", {
             "module_api_name": "Notes",
-            "data": {
+            "data": [{                          # Composio requiere lista
                 "Note_Title": title,
                 "Note_Content": content,
                 "se_module": module,
                 "Parent_Id": record_id,
-            }
+            }]
         }, entity_id)
         return True
     except Exception as e:
@@ -373,7 +369,8 @@ def run_herramienta(herramienta: str, cfg: dict) -> str:
             email   = r.get("Email","")
         else:
             name    = r.get("Deal_Name","")
-            company = r.get("Account_Name","")
+            acct    = r.get("Account_Name","")
+            company = acct.get("name","") if isinstance(acct, dict) else str(acct)
             status  = r.get("Stage","")
             email   = r.get("contact_email","")
 

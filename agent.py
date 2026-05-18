@@ -294,25 +294,29 @@ def create_draft(to_email: str, subject: str, body: str, entity_id: str) -> bool
 
 # ── PASO 5: Crear notas CRM en Zoho ───────────────────────────────────────────
 def create_crm_note(module: str, record_id: str, title: str, content: str, entity_id: str) -> bool:
-    """Usa el SDK de Composio (no HTTP directo) para manejar IDs bigint sin pérdida de precisión."""
+    """Envía el ID como bigint exacto usando JSON manual para evitar pérdida de precisión."""
     try:
-        from composio import Composio
-        from composio_anthropic import AnthropicProvider
+        url     = "https://backend.composio.dev/api/v3.1/tools/execute/ZOHO_CREATE_ZOHO_RECORD"
+        headers = {"x-api-key": COMPOSIO_KEY, "Content-Type": "application/json"}
 
-        client = Composio(provider=AnthropicProvider())
-        entity = client.get_entity(id=entity_id)
-        entity.execute(
-            action="ZOHO_CREATE_ZOHO_RECORD",
-            params={
-                "module_api_name": "Notes",
-                "data": {
-                    "Note_Title": title,
-                    "Note_Content": content,
-                    "se_module": module,
-                    "Parent_Id": record_id,
-                }
-            }
+        # Construir JSON manualmente para que Parent_Id sea entero sin comillas
+        # (Python json.dumps maneja enteros grandes exactamente; el problema era que
+        #  el dict se serializa con float en algunos parsers intermedios)
+        payload_str = (
+            f'{{"arguments":{{"module_api_name":"Notes","data":[{{'
+            f'"Note_Title":{json.dumps(title)},'
+            f'"Note_Content":{json.dumps(content)},'
+            f'"se_module":{json.dumps(module)},'
+            f'"Parent_Id":{record_id}'          # entero exacto, sin comillas
+            f'}}]}},"entity_id":{json.dumps(entity_id)}}}'
         )
+        with httpx.Client(timeout=45) as client:
+            resp = client.post(url, content=payload_str.encode("utf-8"), headers=headers)
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+        data = resp.json()
+        if not data.get("successful", True):
+            raise RuntimeError(str(data)[:200])
         return True
     except Exception as e:
         print(f"  [crm_note] Error: {e}")

@@ -296,11 +296,7 @@ def create_draft(to_email: str, subject: str, body: str, entity_id: str) -> bool
 def create_crm_note(module: str, record_id: str, title: str, content: str, entity_id: str) -> bool:
     """Usa el SDK de Composio (no HTTP directo) para manejar IDs bigint sin pérdida de precisión."""
     try:
-        if PROVIDER == "anthropic":
-            from composio_anthropic import ComposioToolSet
-        else:
-            from composio_openai import ComposioToolSet
-
+        from composio_anthropic import ComposioToolSet  # siempre anthropic, funciona con cualquier LLM
         toolset = ComposioToolSet(api_key=COMPOSIO_KEY, entity_id=entity_id)
         toolset.execute_action(
             action="ZOHO_CREATE_ZOHO_RECORD",

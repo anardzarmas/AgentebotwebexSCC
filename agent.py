@@ -286,11 +286,11 @@ def create_crm_note(module: str, record_id: str, title: str, content: str, entit
     try:
         _composio("ZOHO_CREATE_ZOHO_RECORD", {
             "module_api_name": "Notes",
-            "data": [{                          # Composio requiere lista
+            "data": [{
                 "Note_Title": title,
                 "Note_Content": content,
                 "se_module": module,
-                "Parent_Id": record_id,
+                "Parent_Id": {"id": record_id},   # Zoho requiere objeto, no string
             }]
         }, entity_id)
         return True

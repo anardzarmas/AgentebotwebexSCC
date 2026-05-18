@@ -407,7 +407,7 @@ def _prefetch_am_records(herramienta: str, cfg: dict) -> list:
     page = 1
 
     with httpx.Client(timeout=30) as client:
-        while page <= 15:                          # tope: 15 páginas × 200 = 3 000 registros
+        while page <= 5:                           # tope: 5 páginas × 200 = 1 000 registros
             payload = {
                 "arguments": {
                     "module_api_name": module,
@@ -469,18 +469,26 @@ def run_herramienta(herramienta: str, cfg: dict) -> str:
     if herramienta in ("H1", "H2"):
         am_records = _prefetch_am_records(herramienta, cfg)
         if am_records:
-            # Para Groq: limitar campos por registro para no inflar el prompt
-            if PROVIDER in ("groq", "ollama"):
-                keep_h1 = {"id","First_Name","Last_Name","Company","Email","Lead_Status"}
-                keep_h2 = {"id","Deal_Name","Stage","Amount","Closing_Date","Account_Name","Contact_Name"}
-                keep    = keep_h1 if herramienta == "H1" else keep_h2
-                am_records = [{k: v for k, v in r.items() if k in keep} for r in am_records]
             module_name = "Leads" if herramienta == "H1" else "Potentials"
+            # Serializar en formato compacto para minimizar tokens
+            if herramienta == "H1":
+                lines = []
+                for r in am_records:
+                    name = f"{r.get('First_Name','')} {r.get('Last_Name','')}".strip()
+                    lines.append(f"ID:{r.get('id')}|{name}|{r.get('Company','')}|{r.get('Email','')}|{r.get('Lead_Status','')}")
+                records_text = "\n".join(lines)
+            else:
+                lines = []
+                for r in am_records:
+                    cn = r.get("Contact_Name") or {}
+                    cn_id = cn.get("id","") if isinstance(cn, dict) else ""
+                    lines.append(f"ID:{r.get('id')}|{r.get('Deal_Name','')}|{r.get('Stage','')}|${r.get('Amount','')}|{r.get('Closing_Date','')}|Acct:{r.get('Account_Name','')}|ContactID:{cn_id}")
+                records_text = "\n".join(lines)
             records_inject = (
-                f"\n\nREGISTROS PRE-CARGADOS de {module_name} (ya filtrados por owner):\n"
-                f"NO llames ZOHO_GET_ZOHO_RECORDS para {module_name} — usa los datos de abajo.\n"
-                f"SÍ puedes llamar ZOHO_GET_ZOHO_RECORDS para Contacts u otros módulos.\n"
-                + json.dumps(am_records, ensure_ascii=False, separators=(',', ':'))
+                f"\n\nREGISTROS PRE-CARGADOS de {module_name} ({len(am_records)} registros de {cfg['email']}):\n"
+                f"NO llames ZOHO_GET_ZOHO_RECORDS para {module_name}. SÍ para Contacts.\n"
+                f"Formato: ID|Nombre|Empresa|Email|Status\n"
+                + records_text
             )
             # NOTA: NO eliminar ZOHO_GET_ZOHO_RECORDS — H2 la necesita para buscar Contacts
         else:

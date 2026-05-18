@@ -89,7 +89,7 @@ def responder_en_background(room_id: str, am_email: str, herramientas: list[str]
             resultado = run_herramienta(h, cfg)
             webex_api.messages.create(
                 roomId=room_id,
-                markdown=f"✅ **{h} completado**\n\n```\n{resultado}\n```",
+                markdown=resultado,
             )
         except Exception as e:
             webex_api.messages.create(

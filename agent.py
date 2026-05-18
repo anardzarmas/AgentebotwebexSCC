@@ -123,7 +123,6 @@ def fetch_records(herramienta: str, cfg: dict) -> list:
         except (KeyError, TypeError):
             more = False
 
-        print(f"  [fetch] p{page}: {len(records)} org, {len(mine)} propios, more={more}")
         if not more or len(records) == 0:
             break
         page += 1
@@ -132,12 +131,7 @@ def fetch_records(herramienta: str, cfg: dict) -> list:
     if herramienta == "H1":
         active = [r for r in all_records if r.get("Lead_Status","") not in EXCLUDE_H1]
     else:
-        stages = [r.get("Stage","(sin stage)") for r in all_records]
-        if stages:
-            print(f"  [stages encontrados] {stages}")
         active = [r for r in all_records if r.get("Stage","") not in EXCLUDE_H2]
-
-    print(f"  [fetch] {len(all_records)} totales → {len(active)} activos")
     return active
 
 # ── PASO 2: Fetch notas CRM de cada registro ───────────────────────────────────
@@ -293,30 +287,119 @@ def create_draft(to_email: str, subject: str, body: str, entity_id: str) -> bool
         return False
 
 # ── PASO 5: Crear notas CRM en Zoho ───────────────────────────────────────────
-def create_crm_note(module: str, record_id: str, title: str, content: str, entity_id: str) -> bool:
-    """Envía el ID como bigint exacto usando JSON manual para evitar pérdida de precisión."""
-    try:
-        url     = "https://backend.composio.dev/api/v3.1/tools/execute/ZOHO_CREATE_ZOHO_RECORD"
-        headers = {"x-api-key": COMPOSIO_KEY, "Content-Type": "application/json"}
+_composio_conn_cache: dict[str, str] = {}   # entity_id → connectedAccountId
 
-        # Construir JSON manualmente para que Parent_Id sea entero sin comillas
-        # (Python json.dumps maneja enteros grandes exactamente; el problema era que
-        #  el dict se serializa con float en algunos parsers intermedios)
-        payload_str = (
-            f'{{"arguments":{{"module_api_name":"Notes","data":[{{'
-            f'"Note_Title":{json.dumps(title)},'
-            f'"Note_Content":{json.dumps(content)},'
-            f'"se_module":{json.dumps(module)},'
-            f'"Parent_Id":{record_id}'          # entero exacto, sin comillas
-            f'}}]}},"entity_id":{json.dumps(entity_id)}}}'
+def _get_connected_account_id(entity_id: str) -> str:
+    """Obtiene el connectedAccountId de Zoho CRM para una entidad (con caché)."""
+    if entity_id in _composio_conn_cache:
+        return _composio_conn_cache[entity_id]
+    with httpx.Client(timeout=30) as client:
+        resp = client.get(
+            "https://backend.composio.dev/api/v1/connectedAccounts",
+            params={"entityId": entity_id, "appName": "zohocrm"},
+            headers={"x-api-key": COMPOSIO_KEY},
         )
+    resp.raise_for_status()
+    items = resp.json().get("items", [])
+    if not items:
+        raise RuntimeError(f"No hay cuenta Zoho CRM conectada para entity_id={entity_id}")
+    conn_id = items[0]["id"]
+    _composio_conn_cache[entity_id] = conn_id
+    return conn_id
+
+
+_zoho_token_cache: dict[str, tuple[str, str]] = {}   # conn_id → (token, api_domain)
+
+def _get_zoho_token(conn_id: str) -> tuple[str, str]:
+    """Obtiene el token OAuth activo de Zoho y el dominio de API desde Composio."""
+    if conn_id in _zoho_token_cache:
+        return _zoho_token_cache[conn_id]
+    with httpx.Client(timeout=30) as client:
+        resp = client.get(
+            f"https://backend.composio.dev/api/v1/connectedAccounts/{conn_id}",
+            headers={"x-api-key": COMPOSIO_KEY},
+        )
+    resp.raise_for_status()
+    account = resp.json()
+
+    cp = account.get("connectionParams") or {}
+
+    # Intentar extraer el token de distintas ubicaciones
+    token = ""
+    if isinstance(cp, dict):
+        # Puede venir en headers como "Zoho-oauthtoken <token>"
+        auth_header = (cp.get("headers") or {}).get("Authorization", "")
+        token = auth_header.replace("Zoho-oauthtoken ", "").strip()
+        if not token:
+            token = cp.get("token", "") or cp.get("access_token", "") or ""
+    if not token:
+        token = account.get("token", "") or account.get("access_token", "") or ""
+    if not token:
+        print(f"  [zoho_token] Respuesta completa: {json.dumps(account)[:800]}")
+        raise RuntimeError("No se encontró el token OAuth de Zoho en la cuenta conectada")
+
+    # Dominio de API: la mayoría de orgs usa www.zohoapis.com
+    api_domain = "https://www.zohoapis.com"
+    if isinstance(cp, dict):
+        d = cp.get("api_domain", "") or ""
+        if d.startswith("http"):
+            api_domain = d.rstrip("/")
+
+    _zoho_token_cache[conn_id] = (token, api_domain)
+    return token, api_domain
+
+
+def create_crm_note(module: str, record_id: str, title: str, content: str, entity_id: str) -> bool:
+    """
+    Crea nota CRM usando el proxy de Composio.
+    El ID va en la URL (f-string Python) → sin pérdida de precisión JS.
+    El proxy maneja el token OAuth automáticamente.
+    """
+    try:
+        conn_id = _get_connected_account_id(entity_id)
+
+        # ID en la URL → evita que el parser JS de Composio pierda precisión en bigints.
+        # POST /crm/v2/{Potentials|Leads}/{id}/Notes no requiere Parent_Id en el body.
+        endpoint = f"https://www.zohoapis.com/crm/v2/{module}/{record_id}/Notes"
+
+        proxy_payload = {
+            "connectedAccountId": conn_id,
+            "endpoint": endpoint,
+            "method": "POST",
+            "parameters": [
+                {
+                    "in": "header",
+                    "name": "Content-Type",
+                    "value": "application/json",
+                },
+            ],
+            "body": {
+                "data": [
+                    {
+                        "Note_Title": title,
+                        "Note_Content": content,
+                    }
+                ]
+            },
+        }
+
         with httpx.Client(timeout=45) as client:
-            resp = client.post(url, content=payload_str.encode("utf-8"), headers=headers)
-        if resp.status_code != 200:
-            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
-        data = resp.json()
-        if not data.get("successful", True):
-            raise RuntimeError(str(data)[:200])
+            resp = client.post(
+                "https://backend.composio.dev/api/v2/actions/proxy",
+                json=proxy_payload,
+                headers={"x-api-key": COMPOSIO_KEY, "Content-Type": "application/json"},
+            )
+
+        if resp.status_code not in (200, 201):
+            print(f"  [crm_note] proxy error {resp.status_code}: {resp.text[:200]}")
+            raise RuntimeError(f"HTTP {resp.status_code}")
+        rjson = resp.json()
+        # El proxy devuelve la respuesta de Zoho dentro de "response" o directamente
+        zoho_resp = rjson.get("response") or rjson.get("data") or rjson
+        if isinstance(zoho_resp, dict):
+            items = zoho_resp.get("data", [])
+            if isinstance(items, list) and items and items[0].get("status") == "error":
+                raise RuntimeError(str(items[0]))
         return True
     except Exception as e:
         print(f"  [crm_note] Error: {e}")
@@ -419,18 +502,23 @@ def run_herramienta(herramienta: str, cfg: dict) -> str:
             errores += 1
 
         output_lines.append(
-            f"• {name} — {company} — {status}\n"
-            f"  📧 Borrador: \"{subject}\"\n"
-            f"  📝 Nota CRM: \"{crm_text[:100]}\""
+            f"**{name}**\n"
+            f"🏢 {company} · {status}\n"
+            f"📧 *{subject}*\n"
+            f"📝 {crm_text[:120]}"
         )
 
+    tipo_label = "Leads" if herramienta == "H1" else "Oportunidades"
     summary = (
-        f"{herramienta} [{fecha}] · procesados:{len(active)} · "
-        f"borradores:{borradores} · notas:{notas} · "
-        f"sin_email:{sin_email} · errores:{errores}"
+        f"✅ **{herramienta} — {tipo_label}** · {fecha}\n"
+        f"📊 procesados: {len(active)} · "
+        f"📧 borradores: {borradores} · "
+        f"📝 notas: {notas}"
+        + (f" · ⚠️ sin email: {sin_email}" if sin_email else "")
+        + (f" · ❌ errores: {errores}" if errores else "")
     )
-    detail = "\n\n".join(output_lines)
-    result = f"{summary}\n\nRegistros procesados:\n{detail}"
+    detail = "\n\n---\n\n".join(output_lines)
+    result = f"{summary}\n\n---\n\n{detail}"
     print(result)
     return result
 

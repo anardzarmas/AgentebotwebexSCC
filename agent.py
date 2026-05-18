@@ -252,16 +252,23 @@ Reglas: usa info real de notas CRM si existen. Stage Negotiate=cierre/ajustes, C
 
         # Extraer array JSON de la respuesta
         m = re.search(r'\[.*\]', text, re.DOTALL)
-        if m:
-            return json.loads(m.group())
-        return json.loads(text)
+        raw = m.group() if m else text
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # Limpiar escapes inválidos que algunos LLMs generan
+            cleaned = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
+            return json.loads(cleaned)
 
     except Exception as e:
         print(f"  [LLM] Error: {e} — usando contenido genérico")
+        def _company(r):
+            acct = r.get("Account_Name", r.get("Company", ""))
+            return acct.get("name", "") if isinstance(acct, dict) else str(acct)
         return [
             {
                 "id": r["id"],
-                "subject": f"Seguimiento - {r.get('Company', r.get('Account_Name',''))}",
+                "subject": f"Seguimiento - {_company(r)}",
                 "body": f"Estimado/a,\n\nEspero que se encuentre bien. Me pongo en contacto para dar seguimiento.\n\nQuedo a su disposición.\n\n{firma}",
                 "crm_note": f"Seguimiento preparado - {fecha}",
             }
@@ -290,7 +297,7 @@ def create_crm_note(module: str, record_id: str, title: str, content: str, entit
                 "Note_Title": title,
                 "Note_Content": content,
                 "se_module": module,
-                "Parent_Id": {"id": record_id, "module": {"api_name": module}},
+                "Parent_Id": {"id": int(record_id), "module": {"api_name": module}},
             }]
         }, entity_id)
         return True
